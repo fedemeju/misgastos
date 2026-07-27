@@ -62,10 +62,11 @@ export default function Debts() {
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {addOpen && (
+        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={() => setAddOpen(false)}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={styles.sheetTitle}>Nueva deuda</Text>
               <Text style={styles.inputLabel}>Nombre</Text>
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ej: Préstamo a Juan" placeholderTextColor={c.textFaint} />
@@ -87,10 +88,11 @@ export default function Debts() {
                 <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => setAddOpen(false)}><Text style={styles.btnGhostText}>Cancelar</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={create}><Text style={styles.btnPrimaryText}>Crear</Text></TouchableOpacity>
               </View>
+              </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -112,7 +114,7 @@ const makeStyles = (c) => StyleSheet.create({
   addBtnText: { fontSize: 15, color: c.primary, fontWeight: '500' },
 
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32 },
+  sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, maxHeight: '90%' },
   sheetTitle: { fontSize: 16, fontWeight: '600', color: c.textPrimary, textAlign: 'center', marginBottom: 4 },
   inputLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '500', marginTop: 14, marginBottom: 6 },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, height: 48, fontSize: 16, color: c.textPrimary },

@@ -184,10 +184,11 @@ export default function Accounts() {
       </ScrollView>
 
       {/* Acciones sobre una cuenta */}
-      <Modal visible={sel !== null} transparent animationType="fade" onRequestClose={closeSheet}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {sel !== null && (
+        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={closeSheet}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={styles.sheetTitle}>{sel?.name}</Text>
               <Text style={styles.sheetBalance}>{sel && formatBalance(sel.balance, sel.currency)}</Text>
 
@@ -223,16 +224,18 @@ export default function Accounts() {
                   </View>
                 </>
               )}
+              </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </Modal>
+      )}
 
       {/* Nueva cuenta */}
-      <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {addOpen && (
+        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={() => setAddOpen(false)}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={styles.sheetTitle}>Nueva cuenta</Text>
               <Text style={styles.inputLabel}>Nombre</Text>
               <TextInput style={styles.input} value={newName} onChangeText={setNewName} placeholder="Ej: Efectivo mochila" placeholderTextColor={c.textFaint} />
@@ -261,10 +264,11 @@ export default function Accounts() {
                   <Text style={styles.btnPrimaryText}>Crear</Text>
                 </TouchableOpacity>
               </View>
+              </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -295,7 +299,7 @@ const makeStyles = (c) => StyleSheet.create({
   addBtnText: { fontSize: 15, color: c.primary, fontWeight: '500' },
 
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32 },
+  sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, maxHeight: '90%' },
   sheetTitle: { fontSize: 16, fontWeight: '600', color: c.textPrimary, textAlign: 'center' },
   sheetBalance: { fontSize: 22, fontWeight: '600', color: c.primary, textAlign: 'center', marginTop: 4, marginBottom: 12 },
   menuBtn: { paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.border },
