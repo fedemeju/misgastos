@@ -16,7 +16,6 @@
         "backgroundColor": "#acc2a4"
       },
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
       ]
@@ -51,6 +50,13 @@
         "projectId": "776d3c70-5af2-413f-8735-9cfdd3a0b703"
       }
     },
-    "owner": "fedemejus-team"
+    "owner": "fedemejus-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/776d3c70-5af2-413f-8735-9cfdd3a0b703"
+    },
+    "ios": {}
   }
 }
