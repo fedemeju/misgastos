@@ -185,7 +185,7 @@ export default function Accounts() {
 
       {/* Acciones sobre una cuenta */}
       {sel !== null && (
-        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior="padding">
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={closeSheet}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -232,7 +232,7 @@ export default function Accounts() {
 
       {/* Nueva cuenta */}
       {addOpen && (
-        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={StyleSheet.absoluteFill} behavior="padding">
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={() => setAddOpen(false)}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
