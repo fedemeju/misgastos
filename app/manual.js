@@ -6,7 +6,7 @@ import {
   addIncome, updateIncome, getIncome,
 } from '../src/db';
 import { CATEGORIES, INCOME_CATEGORIES } from '../src/categories';
-import { today, formatBalance } from '../src/format';
+import { today, formatBalance, formatAmountInput, parseAmountInput } from '../src/format';
 import { useTheme } from '../src/theme';
 
 export default function Manual() {
@@ -46,7 +46,7 @@ export default function Manual() {
     loader(editId).then((r) => {
       if (!r) return;
       setDescription(r.description);
-      setAmount(String(r.amount));
+      setAmount(formatAmountInput(String(r.amount).replace('.', ',')));
       setCategory(r.category);
       setDate(r.date);
       if (params.type !== 'income') setMerchant(r.merchant || '');
@@ -59,7 +59,7 @@ export default function Manual() {
   }
 
   async function save() {
-    const value = parseFloat(String(amount).replace(',', '.'));
+    const value = parseAmountInput(amount);
     if (!description.trim()) return Alert.alert('Falta la descripción', 'Escribí una descripción.');
     if (!value || value <= 0) return Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return Alert.alert('Fecha inválida', 'Usá el formato AAAA-MM-DD.');
@@ -103,7 +103,7 @@ export default function Manual() {
         <TextInput style={styles.input} value={description} onChangeText={setDescription} placeholder={type === 'income' ? 'Ej: Sueldo julio' : 'Ej: Compra en el súper'} placeholderTextColor={c.textFaint} />
 
         <Text style={styles.label}>Monto</Text>
-        <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0" placeholderTextColor={c.textFaint} keyboardType="decimal-pad" />
+        <TextInput style={styles.input} value={amount} onChangeText={(t) => setAmount(formatAmountInput(t))} placeholder="0" placeholderTextColor={c.textFaint} keyboardType="decimal-pad" />
 
         <Text style={styles.label}>Categoría</Text>
         <View style={styles.chips}>

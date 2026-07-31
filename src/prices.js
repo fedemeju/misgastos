@@ -5,6 +5,10 @@ const COIN_IDS = {
   BNB: 'binancecoin', SOL: 'solana', XRP: 'ripple', ADA: 'cardano',
   DOGE: 'dogecoin', LTC: 'litecoin', TRX: 'tron', DOT: 'polkadot',
   MATIC: 'matic-network', AVAX: 'avalanche-2', LINK: 'chainlink',
+  // Alias por si la cuenta se guardó con el nombre completo.
+  BITCOIN: 'bitcoin', ETHEREUM: 'ethereum', SOLANA: 'solana',
+  CARDANO: 'cardano', DOGECOIN: 'dogecoin', LITECOIN: 'litecoin',
+  TETHER: 'tether', RIPPLE: 'ripple',
 };
 
 // Dólar oficial (Argentina) desde dolarapi.com. { compra, venta } o null.

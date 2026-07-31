@@ -10,6 +10,12 @@ export const CATEGORIES = [
   { key: 'delivery',     label: 'Delivery',     icon: '🛵', color: '#DA6A2E' },
   { key: 'salud',        label: 'Salud',        icon: '➕', color: '#E24B4A' },
   { key: 'hogar',        label: 'Hogar',        icon: '🏠', color: '#7F77DD' },
+  { key: 'mercadolibre', label: 'Mercado Libre', icon: '📦', color: '#E8A200' },
+  { key: 'ropa',         label: 'Ropa',         icon: '👕', color: '#C2569B' },
+  { key: 'tecnologia',   label: 'Tecnología',   icon: '💻', color: '#2C7BE5' },
+  { key: 'mascotas',     label: 'Mascotas',     icon: '🐾', color: '#16A085' },
+  { key: 'suscripciones',label: 'Suscripciones', icon: '📺', color: '#8E44AD' },
+  { key: 'viajes',       label: 'Viajes',       icon: '✈️', color: '#0E8AA0' },
   { key: 'financiacion', label: 'Financiación', icon: '💸', color: '#0F766E' },
   { key: 'otros',        label: 'Otros',        icon: '•',  color: '#888780' },
 ];

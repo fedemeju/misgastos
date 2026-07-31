@@ -17,6 +17,30 @@ export function formatBalance(amount, currency) {
   return n.toLocaleString('en-US', { maximumFractionDigits: 8 }) + ' ' + currency;
 }
 
+// Formatea lo que se escribe en un campo de monto: agrupa miles con punto,
+// decimal con coma (ej. "1234567" -> "1.234.567"). Decimal opcional con ",".
+export function formatAmountInput(text) {
+  let cleaned = String(text).replace(/\./g, '').replace(/[^\d,]/g, '');
+  const i = cleaned.indexOf(',');
+  let intPart;
+  let dec = null;
+  if (i >= 0) {
+    intPart = cleaned.slice(0, i);
+    dec = cleaned.slice(i + 1).replace(/,/g, '').slice(0, 2);
+  } else {
+    intPart = cleaned;
+  }
+  intPart = intPart.replace(/^0+(?=\d)/, '');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  if (dec !== null) return `${grouped || '0'},${dec}`;
+  return grouped;
+}
+
+// Convierte el texto del campo a número (saca puntos de miles, coma -> punto).
+export function parseAmountInput(text) {
+  return parseFloat(String(text).replace(/\./g, '').replace(',', '.')) || 0;
+}
+
 export function currentMonth() {
   return new Date().toISOString().slice(0, 7); // "YYYY-MM"
 }
