@@ -39,8 +39,9 @@ export default function Accounts() {
   const load = useCallback(() => {
     getAccounts().then(async (accs) => {
       setAccounts(accs);
-      const cryptos = accs.filter((a) => a.kind === 'crypto').map((a) => a.currency);
-      const symbols = [...new Set(['BTC', 'ETH', ...cryptos])];
+      // Cualquier moneda que no sea pesos/dólares se considera cripto y se cotiza.
+      const coinSyms = accs.map((a) => a.currency).filter((cur) => cur && cur !== 'ARS' && cur !== 'USD');
+      const symbols = [...new Set(['BTC', 'ETH', ...coinSyms])];
       setPrices(await fetchCryptoPricesUsd(symbols));
     });
     fetchDolarOficial().then(setDolar);
@@ -74,9 +75,15 @@ export default function Accounts() {
     }, [tryUnlock])
   );
 
+  // ¿La cuenta es en cripto? (cualquier moneda que no sea pesos ni dólares)
+  function isCrypto(acc) {
+    const cur = (acc.currency || '').toUpperCase();
+    return cur && cur !== 'ARS' && cur !== 'USD';
+  }
+
   // Valor en USD de una cuenta cripto (o null si no hay cotización).
   function usdValue(acc) {
-    if (acc.kind !== 'crypto') return null;
+    if (!isCrypto(acc)) return null;
     const p = prices[(acc.currency || '').toUpperCase()];
     return p != null ? acc.balance * p : null;
   }
@@ -87,7 +94,7 @@ export default function Accounts() {
     const v = usdValue(acc);
     return v != null ? sum + v : sum;
   }, 0);
-  const hasUsd = accounts.some((a) => a.currency === 'USD' || a.kind === 'crypto');
+  const hasUsd = accounts.some((a) => a.currency && a.currency !== 'ARS');
 
   function openAccount(acc) {
     setSel(acc);
@@ -195,7 +202,11 @@ export default function Accounts() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.accBalance}>{formatBalance(acc.balance, acc.currency)}</Text>
-                {usd != null && <Text style={styles.accUsd}>≈ {formatBalance(usd, 'USD')}</Text>}
+                {usd != null ? (
+                  <Text style={styles.accUsd}>≈ {formatBalance(usd, 'USD')}</Text>
+                ) : isCrypto(acc) ? (
+                  <Text style={styles.accUsd}>sin cotización</Text>
+                ) : null}
               </View>
             </TouchableOpacity>
           );
