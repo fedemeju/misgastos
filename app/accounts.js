@@ -159,22 +159,6 @@ export default function Accounts() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.quotesCard}>
-          <Text style={styles.quotesTitle}>Cotizaciones de hoy</Text>
-          <View style={styles.quotesRow}>
-            <Text style={styles.quoteLabel}>💵 Dólar oficial</Text>
-            <Text style={styles.quoteVal}>{dolar?.venta ? formatBalance(dolar.venta, 'ARS') : '—'}</Text>
-          </View>
-          <View style={styles.quotesRow}>
-            <Text style={styles.quoteLabel}>₿ Bitcoin</Text>
-            <Text style={styles.quoteVal}>{prices.BTC ? formatBalance(prices.BTC, 'USD') : '—'}</Text>
-          </View>
-          <View style={[styles.quotesRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.quoteLabel}>Ξ Ethereum</Text>
-            <Text style={styles.quoteVal}>{prices.ETH ? formatBalance(prices.ETH, 'USD') : '—'}</Text>
-          </View>
-        </View>
-
         {hasUsd && (
           <View style={styles.usdCard}>
             <Text style={styles.usdLabel}>Total en dólares</Text>
@@ -215,6 +199,22 @@ export default function Accounts() {
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddOpen(true)}>
           <Text style={styles.addBtnText}>+  Agregar cuenta</Text>
         </TouchableOpacity>
+
+        <View style={[styles.quotesCard, { marginTop: 20, marginBottom: 0 }]}>
+          <Text style={styles.quotesTitle}>Cotizaciones de hoy</Text>
+          <View style={styles.quotesRow}>
+            <Text style={styles.quoteLabel}>💵 Dólar oficial</Text>
+            <Text style={styles.quoteVal}>{dolar?.venta ? formatBalance(dolar.venta, 'ARS') : '—'}</Text>
+          </View>
+          <View style={styles.quotesRow}>
+            <Text style={styles.quoteLabel}>₿ Bitcoin</Text>
+            <Text style={styles.quoteVal}>{prices.BTC ? formatBalance(prices.BTC, 'USD') : '—'}</Text>
+          </View>
+          <View style={[styles.quotesRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.quoteLabel}>Ξ Ethereum</Text>
+            <Text style={styles.quoteVal}>{prices.ETH ? formatBalance(prices.ETH, 'USD') : '—'}</Text>
+          </View>
+        </View>
       </ScrollView>
 
       {/* Acciones sobre una cuenta */}
