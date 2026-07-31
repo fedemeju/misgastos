@@ -19,3 +19,16 @@ export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 export function getCategory(key) {
   return CATEGORIES.find((c) => c.key === key) || CATEGORIES[CATEGORIES.length - 1];
 }
+
+// Categorías de ingreso.
+export const INCOME_CATEGORIES = [
+  { key: 'sueldo',    label: 'Sueldo',    icon: '💼', color: '#1D9E75' },
+  { key: 'freelance', label: 'Freelance', icon: '💻', color: '#378ADD' },
+  { key: 'ventas',    label: 'Ventas',    icon: '🏷️', color: '#BA7517' },
+  { key: 'extra',     label: 'Extra',     icon: '✨', color: '#7F77DD' },
+  { key: 'otros',     label: 'Otros',     icon: '•',  color: '#888780' },
+];
+
+export function getIncomeCategory(key) {
+  return INCOME_CATEGORIES.find((c) => c.key === key) || INCOME_CATEGORIES[INCOME_CATEGORIES.length - 1];
+}

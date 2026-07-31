@@ -51,6 +51,14 @@ export async function initDb() {
       note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS incomes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT NOT NULL DEFAULT 'otros',
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migraciones de columnas de expenses.
@@ -240,6 +248,76 @@ export async function getTotalsByCategory(month) {
   );
 }
 
+export async function getExpense(id) {
+  const db = await getDb();
+  return db.getFirstAsync('SELECT * FROM expenses WHERE id = ?', [id]);
+}
+
+// Edita un gasto (no reajusta saldos de efectivo).
+export async function updateExpense(id, { description, amount, category, merchant, date }) {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE expenses SET description = ?, amount = ?, category = ?, merchant = ?, date = ? WHERE id = ?`,
+    [description, Number(amount) || 0, category, merchant || null, date, id]
+  );
+}
+
+// Total de gastos por mes (para evolución / balance).
+export async function getExpenseTotalByMonth(month) {
+  const db = await getDb();
+  const row = await db.getFirstAsync(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE substr(date, 1, 7) = ?`,
+    [month]
+  );
+  return row ? row.total : 0;
+}
+
+// ---- Ingresos ----
+
+export async function addIncome({ description, amount, category, date }) {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO incomes (description, amount, category, date) VALUES (?, ?, ?, ?)`,
+    [description, Number(amount) || 0, category || 'otros', date || new Date().toISOString().slice(0, 10)]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateIncome(id, { description, amount, category, date }) {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE incomes SET description = ?, amount = ?, category = ?, date = ? WHERE id = ?`,
+    [description, Number(amount) || 0, category || 'otros', date, id]
+  );
+}
+
+export async function getIncome(id) {
+  const db = await getDb();
+  return db.getFirstAsync('SELECT * FROM incomes WHERE id = ?', [id]);
+}
+
+export async function getIncomesByMonth(month) {
+  const db = await getDb();
+  return db.getAllAsync(
+    `SELECT * FROM incomes WHERE substr(date, 1, 7) = ? ORDER BY date DESC, id DESC`,
+    [month]
+  );
+}
+
+export async function getIncomeTotalByMonth(month) {
+  const db = await getDb();
+  const row = await db.getFirstAsync(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE substr(date, 1, 7) = ?`,
+    [month]
+  );
+  return row ? row.total : 0;
+}
+
+export async function deleteIncome(id) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM incomes WHERE id = ?', [id]);
+}
+
 // ---- Deudas ----
 
 export async function getDebts() {
@@ -298,20 +376,27 @@ export async function deleteDebtPayment(id) {
 
 export async function exportAllData() {
   const db = await getDb();
-  const [expenses, accounts, debts, debtPayments, settings] = await Promise.all([
+  const [expenses, incomes, accounts, debts, debtPayments, settings] = await Promise.all([
     db.getAllAsync('SELECT * FROM expenses'),
+    db.getAllAsync('SELECT * FROM incomes'),
     db.getAllAsync('SELECT * FROM accounts'),
     db.getAllAsync('SELECT * FROM debts'),
     db.getAllAsync('SELECT * FROM debt_payments'),
     db.getAllAsync("SELECT * FROM settings WHERE key != 'gemini_api_key'"),
   ]);
-  return { app: 'gastos-app', version: 1, exportedAt: new Date().toISOString(), expenses, accounts, debts, debtPayments, settings };
+  return { app: 'gastos-app', version: 2, exportedAt: new Date().toISOString(), expenses, incomes, accounts, debts, debtPayments, settings };
 }
 
 export async function importAllData(data) {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
-    await db.execAsync('DELETE FROM expenses; DELETE FROM accounts; DELETE FROM debts; DELETE FROM debt_payments;');
+    await db.execAsync('DELETE FROM expenses; DELETE FROM incomes; DELETE FROM accounts; DELETE FROM debts; DELETE FROM debt_payments;');
+    for (const i of data.incomes || []) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO incomes (id, description, amount, category, date, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [i.id, i.description, i.amount, i.category ?? 'otros', i.date, i.created_at ?? null]
+      );
+    }
     for (const e of data.expenses || []) {
       await db.runAsync(
         `INSERT OR REPLACE INTO expenses (id, description, amount, category, merchant, date, source, created_at, account_id, group_id, group_label)

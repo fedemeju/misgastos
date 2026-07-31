@@ -6,7 +6,7 @@ import {
   getAccounts, addAccount, deleteAccount, renameAccount, adjustAccountBalance, setAccountBalance, getSetting,
 } from '../src/db';
 import { formatBalance } from '../src/format';
-import { fetchCryptoPricesUsd } from '../src/prices';
+import { fetchCryptoPricesUsd, fetchDolarOficial } from '../src/prices';
 import { useTheme } from '../src/theme';
 
 const KIND_ICON = { cash: '💵', crypto: '🪙' };
@@ -23,6 +23,7 @@ export default function Accounts() {
   const [unlocked, setUnlocked] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [prices, setPrices] = useState({}); // { BTC: 65000, ... } en USD
+  const [dolar, setDolar] = useState(null); // { compra, venta } oficial
 
   // Modal de acción sobre una cuenta.
   const [sel, setSel] = useState(null);      // cuenta seleccionada
@@ -39,8 +40,10 @@ export default function Accounts() {
     getAccounts().then(async (accs) => {
       setAccounts(accs);
       const cryptos = accs.filter((a) => a.kind === 'crypto').map((a) => a.currency);
-      if (cryptos.length) setPrices(await fetchCryptoPricesUsd(cryptos));
+      const symbols = [...new Set(['BTC', 'ETH', ...cryptos])];
+      setPrices(await fetchCryptoPricesUsd(symbols));
     });
+    fetchDolarOficial().then(setDolar);
   }, []);
 
   // Autenticación por huella/rostro. Si el usuario la tiene activada y el
@@ -149,11 +152,31 @@ export default function Accounts() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.quotesCard}>
+          <Text style={styles.quotesTitle}>Cotizaciones de hoy</Text>
+          <View style={styles.quotesRow}>
+            <Text style={styles.quoteLabel}>💵 Dólar oficial</Text>
+            <Text style={styles.quoteVal}>{dolar?.venta ? formatBalance(dolar.venta, 'ARS') : '—'}</Text>
+          </View>
+          <View style={styles.quotesRow}>
+            <Text style={styles.quoteLabel}>₿ Bitcoin</Text>
+            <Text style={styles.quoteVal}>{prices.BTC ? formatBalance(prices.BTC, 'USD') : '—'}</Text>
+          </View>
+          <View style={[styles.quotesRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.quoteLabel}>Ξ Ethereum</Text>
+            <Text style={styles.quoteVal}>{prices.ETH ? formatBalance(prices.ETH, 'USD') : '—'}</Text>
+          </View>
+        </View>
+
         {hasUsd && (
           <View style={styles.usdCard}>
             <Text style={styles.usdLabel}>Total en dólares</Text>
             <Text style={styles.usdValue}>{formatBalance(usdTotal, 'USD')}</Text>
-            <Text style={styles.usdNote}>Cuentas en USD + cripto a cotización de hoy</Text>
+            {dolar?.venta ? (
+              <Text style={styles.usdNote}>≈ {formatBalance(usdTotal * dolar.venta, 'ARS')} al dólar oficial</Text>
+            ) : (
+              <Text style={styles.usdNote}>Cuentas en USD + cripto a cotización de hoy</Text>
+            )}
           </View>
         )}
 
@@ -283,6 +306,11 @@ const makeStyles = (c) => StyleSheet.create({
   lockBtnText: { color: c.onPrimary, fontSize: 15, fontWeight: '600' },
   lockBack: { marginTop: 16, padding: 8 },
   lockBackText: { color: c.textSecondary, fontSize: 14 },
+  quotesCard: { backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: c.border },
+  quotesTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '600', marginBottom: 8 },
+  quotesRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: c.border },
+  quoteLabel: { fontSize: 14, color: c.textPrimary },
+  quoteVal: { fontSize: 14, color: c.textPrimary, fontWeight: '600' },
   usdCard: { backgroundColor: c.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.border },
   usdLabel: { fontSize: 13, color: c.textSecondary },
   usdValue: { fontSize: 26, fontWeight: '600', color: c.primary, marginTop: 2 },

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Svg, { Circle, G } from 'react-native-svg';
-import { getTotalsByCategory } from '../src/db';
+import { getTotalsByCategory, getExpenseTotalByMonth, getIncomeTotalByMonth } from '../src/db';
 import { getCategory } from '../src/categories';
 import { formatMoney, currentMonth, monthLabel } from '../src/format';
 import { useTheme } from '../src/theme';
@@ -55,13 +55,27 @@ export default function Analysis() {
   const prev = shiftMonth(month, -1);
   const [cur, setCur] = useState([]);
   const [prevTot, setPrevTot] = useState([]);
+  const [history, setHistory] = useState([]);
 
   useFocusEffect(
     useCallback(() => {
       getTotalsByCategory(month).then(setCur);
       getTotalsByCategory(prev).then(setPrevTot);
+      (async () => {
+        const arr = [];
+        for (let i = 5; i >= 0; i--) {
+          const mm = shiftMonth(month, -i);
+          const [ex, inc] = await Promise.all([getExpenseTotalByMonth(mm), getIncomeTotalByMonth(mm)]);
+          arr.push({ month: mm, expense: ex, income: inc });
+        }
+        setHistory(arr);
+      })();
     }, [month, prev])
   );
+
+  const maxHist = history.reduce((mx, h) => Math.max(mx, h.expense, h.income), 0);
+  const compact = (n) => (n >= 1000000 ? Math.round(n / 100000) / 10 + 'M' : n >= 1000 ? Math.round(n / 1000) + 'k' : Math.round(n));
+  const monthAbbr = (mm) => ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][Number(mm.split('-')[1]) - 1];
 
   const curTotal = cur.reduce((s, t) => s + t.total, 0);
   const prevTotal = prevTot.reduce((s, t) => s + t.total, 0);
@@ -89,6 +103,31 @@ export default function Analysis() {
             {diff > 0 ? '▲' : '▼'} {formatMoney(Math.abs(diff))} ({pct > 0 ? '+' : ''}{pct}%) vs mes anterior
           </Text>
         )}
+      </View>
+
+      <Text style={styles.section}>Evolución (últimos 6 meses)</Text>
+      <View style={styles.chartCard}>
+        <View style={styles.chart}>
+          {history.map((h) => {
+            const eH = maxHist ? Math.max(3, (h.expense / maxHist) * 110) : 3;
+            const iH = maxHist ? Math.max(3, (h.income / maxHist) * 110) : 3;
+            const isCur = h.month === month;
+            return (
+              <View key={h.month} style={styles.chartCol}>
+                <Text style={styles.chartVal}>{h.expense > 0 ? compact(h.expense) : ''}</Text>
+                <View style={styles.barsPair}>
+                  <View style={[styles.bar, { height: eH, backgroundColor: isCur ? c.danger : c.danger + '77' }]} />
+                  <View style={[styles.bar, { height: iH, backgroundColor: isCur ? c.primary : c.primary + '77' }]} />
+                </View>
+                <Text style={[styles.chartMonth, isCur && { color: c.textPrimary, fontWeight: '600' }]}>{monthAbbr(h.month)}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <View style={styles.legendChart}>
+          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: c.danger }]} /><Text style={styles.legendTxt}>Gastos</Text></View>
+          <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: c.primary }]} /><Text style={styles.legendTxt}>Ingresos</Text></View>
+        </View>
       </View>
 
       {cur.length === 0 ? (
@@ -132,6 +171,17 @@ const makeStyles = (c) => StyleSheet.create({
   comparePrev: { fontSize: 16, fontWeight: '500', color: c.textSecondary, marginTop: 2 },
   deltaText: { fontSize: 13, fontWeight: '600', marginTop: 12 },
   section: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginTop: 24, marginBottom: 10 },
+  chartCard: { backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.border },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', height: 150, gap: 6 },
+  chartCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  chartVal: { fontSize: 9, color: c.textMuted, marginBottom: 3 },
+  barsPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  bar: { width: 9, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+  chartMonth: { fontSize: 10, color: c.textSecondary, marginTop: 5 },
+  legendChart: { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendTxt: { fontSize: 12, color: c.textSecondary },
   donutWrap: { alignItems: 'center', marginVertical: 8 },
   empty: { fontSize: 13, color: c.textMuted, marginTop: 20 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 12, padding: 14, marginBottom: 8, marginTop: 2 },

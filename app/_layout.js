@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { initDb } from '../src/db';
 import { ThemeProvider, useTheme } from '../src/theme';
+import { applyReminderFromSettings } from '../src/reminders';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+});
 
 function ThemedStack() {
   const { colors: c } = useTheme();
@@ -37,7 +43,10 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    initDb().then(() => setReady(true));
+    initDb().then(() => {
+      setReady(true);
+      applyReminderFromSettings();
+    });
   }, []);
 
   if (!ready) {

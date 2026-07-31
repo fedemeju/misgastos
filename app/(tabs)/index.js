@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter, useFocusEffect, Link, Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getExpensesByMonth, getTotalsByCategory, deleteExpense, deleteExpenses, deleteExpensesByMonth } from '../../src/db';
-import { getCategory } from '../../src/categories';
+import { getExpensesByMonth, getTotalsByCategory, deleteExpense, deleteExpenses, deleteExpensesByMonth, getIncomesByMonth, deleteIncome } from '../../src/db';
+import { getCategory, getIncomeCategory } from '../../src/categories';
 import { formatMoney, currentMonth, monthLabel, shortDate } from '../../src/format';
 import { useTheme } from '../../src/theme';
 
@@ -18,23 +18,28 @@ export default function Home() {
   const { colors: c, homeOnly } = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const [expenses, setExpenses] = useState([]);
+  const [incomes, setIncomes] = useState([]);
   const [totals, setTotals] = useState([]);
   const [month, setMonth] = useState(currentMonth());
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
   const load = useCallback(async (m) => {
-    const [exp, tot] = await Promise.all([
+    const [exp, inc, tot] = await Promise.all([
       getExpensesByMonth(m),
+      getIncomesByMonth(m),
       getTotalsByCategory(m),
     ]);
     setExpenses(exp);
+    setIncomes(inc);
     setTotals(tot);
   }, []);
 
   useFocusEffect(useCallback(() => { load(month); }, [load, month]));
 
   const grandTotal = totals.reduce((sum, t) => sum + t.total, 0);
+  const incomeTotal = incomes.reduce((sum, i) => sum + i.amount, 0);
+  const net = incomeTotal - grandTotal;
   const maxCat = totals.length ? totals[0].total : 0;
   const atCurrent = month === currentMonth();
 
@@ -80,6 +85,21 @@ export default function Home() {
     }
     return out;
   }, [expenses]);
+
+  // Combina gastos (agrupados) e ingresos, ordenados por fecha.
+  const feed = useMemo(() => {
+    const items = movements.map((m) => ({ ...m, _date: m.type === 'group' ? m.date : m.expense.date }));
+    for (const inc of incomes) items.push({ type: 'income', income: inc, _date: inc.date });
+    items.sort((a, b) => (a._date < b._date ? 1 : a._date > b._date ? -1 : 0));
+    return items;
+  }, [movements, incomes]);
+
+  function confirmDeleteIncome(id) {
+    Alert.alert('Borrar ingreso', '¿Seguro que querés borrarlo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Borrar', style: 'destructive', onPress: async () => { await deleteIncome(id); load(month); } },
+    ]);
+  }
 
   function confirmDeleteMonth() {
     if (expenses.length === 0) return;
@@ -140,8 +160,18 @@ export default function Home() {
               </Link>
             </View>
           </View>
-          <Text style={styles.title}>Total del mes</Text>
+          <Text style={styles.title}>Gastos del mes</Text>
           <Text style={styles.total}>{formatMoney(grandTotal)}</Text>
+          <View style={styles.ptRow}>
+            <View style={styles.ptItem}>
+              <Text style={styles.ptLabel}>Ingresos</Text>
+              <Text style={[styles.ptValue, { color: c.primary }]}>{formatMoney(incomeTotal)}</Text>
+            </View>
+            <View style={styles.ptItem}>
+              <Text style={styles.ptLabel}>Balance</Text>
+              <Text style={[styles.ptValue, { color: net >= 0 ? c.primary : c.danger }]}>{formatMoney(net)}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.quickRow}>
@@ -195,10 +225,31 @@ export default function Home() {
           )}
         </View>
 
-        {expenses.length === 0 ? (
-          <Text style={styles.hint}>Cargá un gasto con los botones de abajo.</Text>
+        {feed.length === 0 ? (
+          <Text style={styles.hint}>Cargá un gasto o ingreso con los botones de abajo.</Text>
         ) : (
-          movements.map((m) => {
+          feed.map((m) => {
+            if (m.type === 'income') {
+              const inc = m.income;
+              const icat = getIncomeCategory(inc.category);
+              return (
+                <TouchableOpacity
+                  key={'inc' + inc.id}
+                  style={styles.moveRow}
+                  activeOpacity={0.7}
+                  onPress={() => { if (!selectMode) router.push({ pathname: '/manual', params: { id: inc.id, type: 'income' } }); }}
+                  onLongPress={() => { if (!selectMode) confirmDeleteIncome(inc.id); }}
+                >
+                  <View style={styles.moveLeft}>
+                    <View>
+                      <Text style={styles.moveDesc}>{inc.description}</Text>
+                      <Text style={styles.moveMeta}>Ingreso · {icat.label} · {shortDate(inc.date)}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.moveAmount, { color: c.primary }]}>+{formatMoney(inc.amount)}</Text>
+                </TouchableOpacity>
+              );
+            }
             if (m.type === 'group') {
               const selected = m.ids.every((id) => selectedIds.includes(id));
               return (
@@ -232,7 +283,7 @@ export default function Home() {
                 key={e.id}
                 style={[styles.moveRow, selected && styles.moveRowSelected]}
                 activeOpacity={0.7}
-                onPress={() => selectMode && toggleSelect(e.id)}
+                onPress={() => (selectMode ? toggleSelect(e.id) : router.push({ pathname: '/manual', params: { id: e.id } }))}
                 onLongPress={() => { if (!selectMode) { setSelectMode(true); toggleSelect(e.id); } }}
               >
                 <View style={styles.moveLeft}>
@@ -253,8 +304,8 @@ export default function Home() {
             );
           })
         )}
-        {expenses.length > 0 && !selectMode && (
-          <Text style={styles.tinyHint}>Mantené presionado un gasto para seleccionar y borrar varios.</Text>
+        {feed.length > 0 && !selectMode && (
+          <Text style={styles.tinyHint}>Tocá un movimiento para editarlo · mantené presionado para borrar.</Text>
         )}
       </ScrollView>
 
@@ -297,6 +348,10 @@ const makeStyles = (c) => StyleSheet.create({
   trash: { fontSize: 16 },
   title: { fontSize: 13, color: c.textSecondary, marginTop: 14 },
   total: { fontSize: 30, fontWeight: '600', color: c.textPrimary, marginTop: 2 },
+  ptRow: { flexDirection: 'row', gap: 12, marginTop: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
+  ptItem: { flex: 1 },
+  ptLabel: { fontSize: 12, color: c.textMuted },
+  ptValue: { fontSize: 18, fontWeight: '600', marginTop: 2 },
   quickRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   quickBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   quickText: { fontSize: 14, color: c.textPrimary, fontWeight: '500' },

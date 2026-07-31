@@ -7,6 +7,18 @@ const COIN_IDS = {
   MATIC: 'matic-network', AVAX: 'avalanche-2', LINK: 'chainlink',
 };
 
+// Dólar oficial (Argentina) desde dolarapi.com. { compra, venta } o null.
+export async function fetchDolarOficial() {
+  try {
+    const res = await fetch('https://dolarapi.com/v1/dolares/oficial');
+    if (!res.ok) return null;
+    const d = await res.json();
+    return { compra: Number(d.compra) || null, venta: Number(d.venta) || null };
+  } catch {
+    return null;
+  }
+}
+
 // Devuelve { BTC: 65000, ETH: 3200, ... } en USD. Si falla, {}.
 export async function fetchCryptoPricesUsd(symbols) {
   const wanted = [...new Set((symbols || []).map((s) => (s || '').toUpperCase()))];

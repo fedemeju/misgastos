@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Linking, Switch } from 'react-native';
 import { getSetting, setSetting } from '../src/db';
 import { exportBackup, importBackup } from '../src/backup';
+import { scheduleDailyReminder, cancelReminder, DEFAULT_MSG } from '../src/reminders';
 import { useTheme } from '../src/theme';
 
 const THEME_OPTIONS = [
@@ -16,11 +17,50 @@ export default function Settings() {
   const [key, setKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [lockAccounts, setLockAccounts] = useState(true);
+  const [remOn, setRemOn] = useState(false);
+  const [remTime, setRemTime] = useState('21:00');
+  const [remMsg, setRemMsg] = useState(DEFAULT_MSG);
 
   useEffect(() => {
     getSetting('gemini_api_key').then((v) => v && setKey(v));
     getSetting('lock_accounts').then((v) => setLockAccounts(v !== 'off'));
+    getSetting('reminder_on').then((v) => setRemOn(v === 'on'));
+    getSetting('reminder_time').then((v) => v && setRemTime(v));
+    getSetting('reminder_msg').then((v) => v && setRemMsg(v));
   }, []);
+
+  function parseTime(t) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+    if (!m) return null;
+    const h = Number(m[1]); const mi = Number(m[2]);
+    if (h > 23 || mi > 59) return null;
+    return { h, mi };
+  }
+
+  async function toggleReminder(v) {
+    if (v) {
+      const t = parseTime(remTime) || { h: 21, mi: 0 };
+      const ok = await scheduleDailyReminder(t.h, t.mi, remMsg.trim() || DEFAULT_MSG);
+      if (!ok) { Alert.alert('Permiso necesario', 'Activá las notificaciones de la app para recibir el recordatorio.'); return; }
+      setRemOn(true);
+      await setSetting('reminder_on', 'on');
+    } else {
+      await cancelReminder();
+      setRemOn(false);
+      await setSetting('reminder_on', 'off');
+    }
+  }
+
+  async function saveReminder() {
+    const t = parseTime(remTime);
+    if (!t) return Alert.alert('Hora inválida', 'Usá el formato HH:MM (ej. 21:30).');
+    await setSetting('reminder_time', remTime.trim());
+    await setSetting('reminder_msg', remMsg.trim() || DEFAULT_MSG);
+    if (remOn) {
+      await scheduleDailyReminder(t.h, t.mi, remMsg.trim() || DEFAULT_MSG);
+      Alert.alert('Listo', `Te voy a recordar todos los días a las ${remTime}.`);
+    }
+  }
 
   function toggleLock(v) {
     setLockAccounts(v);
@@ -109,6 +149,22 @@ export default function Settings() {
           thumbColor="#fff"
         />
       </View>
+
+      <Text style={[styles.title, { marginTop: 30 }]}>Recordatorio diario</Text>
+      <View style={styles.switchRow}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={styles.switchLabel}>Recordarme cargar los gastos</Text>
+          <Text style={styles.switchSub}>Una notificación por día a la hora que elijas.</Text>
+        </View>
+        <Switch value={remOn} onValueChange={toggleReminder} trackColor={{ true: c.primary, false: c.border }} thumbColor="#fff" />
+      </View>
+      <Text style={styles.label}>Hora (HH:MM)</Text>
+      <TextInput style={styles.input} value={remTime} onChangeText={setRemTime} placeholder="21:00" placeholderTextColor={c.textFaint} keyboardType="numbers-and-punctuation" />
+      <Text style={styles.label}>Mensaje</Text>
+      <TextInput style={styles.input} value={remMsg} onChangeText={setRemMsg} placeholder={DEFAULT_MSG} placeholderTextColor={c.textFaint} />
+      <TouchableOpacity style={styles.saveBtn} onPress={saveReminder}>
+        <Text style={styles.saveText}>Guardar recordatorio</Text>
+      </TouchableOpacity>
 
       <Text style={[styles.title, { marginTop: 30 }]}>Backup de datos</Text>
       <Text style={styles.text}>Tus datos viven solo en el teléfono. Exportá un archivo y guardalo en Drive o donde quieras.</Text>
