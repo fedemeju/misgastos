@@ -11,16 +11,26 @@ const COIN_IDS = {
   TETHER: 'tether', RIPPLE: 'ripple',
 };
 
-// Dólar oficial (Argentina) desde dolarapi.com. { compra, venta } o null.
-export async function fetchDolarOficial() {
+// Cotización de un dólar (casa) desde dolarapi.com. { compra, venta } o null.
+async function fetchDolar(casa) {
   try {
-    const res = await fetch('https://dolarapi.com/v1/dolares/oficial');
+    const res = await fetch(`https://dolarapi.com/v1/dolares/${casa}`);
     if (!res.ok) return null;
     const d = await res.json();
     return { compra: Number(d.compra) || null, venta: Number(d.venta) || null };
   } catch {
     return null;
   }
+}
+
+// Dólar oficial (Argentina).
+export function fetchDolarOficial() {
+  return fetchDolar('oficial');
+}
+
+// Dólar blue (informal).
+export function fetchDolarBlue() {
+  return fetchDolar('blue');
 }
 
 // Nombre completo -> símbolo (ej. "ETHEREUM" -> "ETH").

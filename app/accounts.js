@@ -6,7 +6,7 @@ import {
   getAccounts, addAccount, deleteAccount, renameAccount, adjustAccountBalance, setAccountBalance, getSetting,
 } from '../src/db';
 import { formatBalance } from '../src/format';
-import { fetchCryptoPricesUsd, fetchDolarOficial } from '../src/prices';
+import { fetchCryptoPricesUsd, fetchDolarOficial, fetchDolarBlue } from '../src/prices';
 import { useTheme } from '../src/theme';
 
 const KIND_ICON = { cash: '💵', crypto: '🪙' };
@@ -24,6 +24,7 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
   const [prices, setPrices] = useState({}); // { BTC: 65000, ... } en USD
   const [dolar, setDolar] = useState(null); // { compra, venta } oficial
+  const [blue, setBlue] = useState(null);   // { compra, venta } blue
 
   // Modal de acción sobre una cuenta.
   const [sel, setSel] = useState(null);      // cuenta seleccionada
@@ -45,6 +46,7 @@ export default function Accounts() {
       setPrices(await fetchCryptoPricesUsd(symbols));
     });
     fetchDolarOficial().then(setDolar);
+    fetchDolarBlue().then(setBlue);
   }, []);
 
   // Autenticación por huella/rostro. Si el usuario la tiene activada y el
@@ -205,6 +207,10 @@ export default function Accounts() {
           <View style={styles.quotesRow}>
             <Text style={styles.quoteLabel}>💵 Dólar oficial</Text>
             <Text style={styles.quoteVal}>{dolar?.venta ? formatBalance(dolar.venta, 'ARS') : '—'}</Text>
+          </View>
+          <View style={styles.quotesRow}>
+            <Text style={styles.quoteLabel}>💵 Dólar blue</Text>
+            <Text style={styles.quoteVal}>{blue?.venta ? formatBalance(blue.venta, 'ARS') : '—'}</Text>
           </View>
           <View style={styles.quotesRow}>
             <Text style={styles.quoteLabel}>₿ Bitcoin</Text>

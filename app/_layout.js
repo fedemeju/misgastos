@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { initDb } from '../src/db';
 import { ThemeProvider, useTheme } from '../src/theme';
-import { applyReminderFromSettings } from '../src/reminders';
+import { applyReminderFromSettings, rescheduleAllDue } from '../src/reminders';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
@@ -32,6 +32,7 @@ function ThemedStack() {
         <Stack.Screen name="accounts" options={{ title: 'Saldos' }} />
         <Stack.Screen name="analysis" options={{ title: 'Análisis' }} />
         <Stack.Screen name="debts" options={{ title: 'Deudas' }} />
+        <Stack.Screen name="vencimientos" options={{ title: 'Vencimientos' }} />
         <Stack.Screen name="debt" options={{ title: 'Deuda' }} />
         <Stack.Screen name="settings" options={{ title: 'Ajustes' }} />
       </Stack>
@@ -46,6 +47,7 @@ export default function RootLayout() {
     initDb().then(() => {
       setReady(true);
       applyReminderFromSettings();
+      rescheduleAllDue();
     });
   }, []);
 

@@ -182,6 +182,9 @@ export default function Home() {
             <Text style={styles.quickText}>🧾  Deudas</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity style={[styles.quickBtn, styles.quickWide]} onPress={() => router.push('/vencimientos')}>
+          <Text style={styles.quickText}>📅  Vencimientos de tarjeta y deudas</Text>
+        </TouchableOpacity>
 
         <Text style={styles.section}>Por categoría</Text>
         {totals.length === 0 ? (
@@ -354,6 +357,7 @@ const makeStyles = (c) => StyleSheet.create({
   ptValue: { fontSize: 18, fontWeight: '600', marginTop: 2 },
   quickRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   quickBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  quickWide: { marginTop: 12, flex: undefined },
   quickText: { fontSize: 14, color: c.textPrimary, fontWeight: '500' },
   section: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginTop: 22, marginBottom: 10 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10 },

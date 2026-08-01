@@ -59,6 +59,18 @@ export async function initDb() {
       date TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS due_reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      amount REAL,
+      kind TEXT NOT NULL DEFAULT 'monthly',
+      day INTEGER,
+      date TEXT,
+      hour INTEGER NOT NULL DEFAULT 9,
+      minute INTEGER NOT NULL DEFAULT 0,
+      notif_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migraciones de columnas de expenses.
@@ -372,25 +384,53 @@ export async function deleteDebtPayment(id) {
   await db.runAsync('DELETE FROM debt_payments WHERE id = ?', [id]);
 }
 
+// ---- Vencimientos (avisos manuales de tarjeta / deuda) ----
+
+export async function getDueReminders() {
+  const db = await getDb();
+  return db.getAllAsync(`SELECT * FROM due_reminders ORDER BY kind, day, date, id`);
+}
+
+export async function addDueReminder({ title, amount, kind, day, date, hour, minute, notifId }) {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT INTO due_reminders (title, amount, kind, day, date, hour, minute, notif_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, amount ?? null, kind || 'monthly', day ?? null, date ?? null, hour ?? 9, minute ?? 0, notifId ?? null]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function setDueReminderNotif(id, notifId) {
+  const db = await getDb();
+  await db.runAsync('UPDATE due_reminders SET notif_id = ? WHERE id = ?', [notifId ?? null, id]);
+}
+
+export async function deleteDueReminder(id) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM due_reminders WHERE id = ?', [id]);
+}
+
 // ---- Backup (exportar / importar todo) ----
 
 export async function exportAllData() {
   const db = await getDb();
-  const [expenses, incomes, accounts, debts, debtPayments, settings] = await Promise.all([
+  const [expenses, incomes, accounts, debts, debtPayments, dueReminders, settings] = await Promise.all([
     db.getAllAsync('SELECT * FROM expenses'),
     db.getAllAsync('SELECT * FROM incomes'),
     db.getAllAsync('SELECT * FROM accounts'),
     db.getAllAsync('SELECT * FROM debts'),
     db.getAllAsync('SELECT * FROM debt_payments'),
+    db.getAllAsync('SELECT * FROM due_reminders'),
     db.getAllAsync("SELECT * FROM settings WHERE key != 'gemini_api_key'"),
   ]);
-  return { app: 'gastos-app', version: 2, exportedAt: new Date().toISOString(), expenses, incomes, accounts, debts, debtPayments, settings };
+  return { app: 'gastos-app', version: 3, exportedAt: new Date().toISOString(), expenses, incomes, accounts, debts, debtPayments, dueReminders, settings };
 }
 
 export async function importAllData(data) {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
-    await db.execAsync('DELETE FROM expenses; DELETE FROM incomes; DELETE FROM accounts; DELETE FROM debts; DELETE FROM debt_payments;');
+    await db.execAsync('DELETE FROM expenses; DELETE FROM incomes; DELETE FROM accounts; DELETE FROM debts; DELETE FROM debt_payments; DELETE FROM due_reminders;');
     for (const i of data.incomes || []) {
       await db.runAsync(
         `INSERT OR REPLACE INTO incomes (id, description, amount, category, date, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -420,6 +460,13 @@ export async function importAllData(data) {
       await db.runAsync(
         `INSERT OR REPLACE INTO debt_payments (id, debt_id, amount, date, note, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
         [p.id, p.debt_id, p.amount, p.date, p.note ?? null, p.created_at ?? null]
+      );
+    }
+    for (const r of data.dueReminders || []) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO due_reminders (id, title, amount, kind, day, date, hour, minute, notif_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [r.id, r.title, r.amount ?? null, r.kind ?? 'monthly', r.day ?? null, r.date ?? null, r.hour ?? 9, r.minute ?? 0, r.notif_id ?? null, r.created_at ?? null]
       );
     }
     for (const s of data.settings || []) {
