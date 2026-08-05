@@ -265,13 +265,26 @@ export async function getExpense(id) {
   return db.getFirstAsync('SELECT * FROM expenses WHERE id = ?', [id]);
 }
 
-// Edita un gasto (no reajusta saldos de efectivo).
-export async function updateExpense(id, { description, amount, category, merchant, date }) {
+// Edita un gasto y reajusta los saldos de efectivo si cambió la cuenta o el monto.
+export async function updateExpense(id, { description, amount, category, merchant, date, accountId }) {
   const db = await getDb();
-  await db.runAsync(
-    `UPDATE expenses SET description = ?, amount = ?, category = ?, merchant = ?, date = ? WHERE id = ?`,
-    [description, Number(amount) || 0, category, merchant || null, date, id]
-  );
+  const newVal = Number(amount) || 0;
+  const newAcc = accountId ?? null;
+  const prev = await db.getFirstAsync('SELECT amount, account_id FROM expenses WHERE id = ?', [id]);
+  await db.withTransactionAsync(async () => {
+    // Devolvemos el monto anterior a la cuenta anterior (si tenía).
+    if (prev && prev.account_id != null) {
+      await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [prev.amount, prev.account_id]);
+    }
+    // Descontamos el nuevo monto de la nueva cuenta (si corresponde).
+    if (newAcc != null) {
+      await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [newVal, newAcc]);
+    }
+    await db.runAsync(
+      `UPDATE expenses SET description = ?, amount = ?, category = ?, merchant = ?, date = ?, account_id = ? WHERE id = ?`,
+      [description, newVal, category, merchant || null, date, newAcc, id]
+    );
+  });
 }
 
 // Total de gastos por mes (para evolución / balance).

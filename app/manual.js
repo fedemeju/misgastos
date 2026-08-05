@@ -32,8 +32,8 @@ export default function Manual() {
   const cats = type === 'income' ? INCOME_CATEGORIES : CATEGORIES;
 
   useEffect(() => {
-    if (!isEdit) getCashArsAccounts().then(setCashAccounts);
-  }, [isEdit]);
+    getCashArsAccounts().then(setCashAccounts);
+  }, []);
 
   useEffect(() => {
     navigation.setOptions({ title: isEdit ? 'Editar' : type === 'income' ? 'Cargar ingreso' : 'Cargar gasto' });
@@ -49,7 +49,10 @@ export default function Manual() {
       setAmount(formatAmountInput(String(r.amount).replace('.', ',')));
       setCategory(r.category);
       setDate(r.date);
-      if (params.type !== 'income') setMerchant(r.merchant || '');
+      if (params.type !== 'income') {
+        setMerchant(r.merchant || '');
+        setAccountId(r.account_id ?? null);
+      }
     });
   }, [isEdit]);
 
@@ -70,9 +73,9 @@ export default function Manual() {
         const data = { description: description.trim(), amount: value, category, date };
         if (isEdit) await updateIncome(editId, data); else await addIncome(data);
       } else {
-        const data = { description: description.trim(), amount: value, category, merchant: merchant.trim(), date };
+        const data = { description: description.trim(), amount: value, category, merchant: merchant.trim(), date, accountId };
         if (isEdit) await updateExpense(editId, data);
-        else await addExpense({ ...data, source: 'manual', accountId });
+        else await addExpense({ ...data, source: 'manual' });
       }
       router.back();
     } catch (e) {
@@ -131,12 +134,12 @@ export default function Manual() {
         <Text style={styles.label}>Fecha</Text>
         <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="AAAA-MM-DD" placeholderTextColor={c.textFaint} />
 
-        {type === 'expense' && !isEdit && cashAccounts.length > 0 && (
+        {type === 'expense' && cashAccounts.length > 0 && (
           <>
-            <Text style={styles.label}>¿Pagaste en efectivo?</Text>
+            <Text style={styles.label}>Método de pago</Text>
             <View style={styles.chips}>
               <TouchableOpacity style={[styles.chip, accountId === null && { backgroundColor: c.selectedBg, borderColor: c.primary }]} onPress={() => setAccountId(null)}>
-                <Text style={[styles.chipText, accountId === null && { color: c.primary, fontWeight: '600' }]}>No descontar</Text>
+                <Text style={[styles.chipText, accountId === null && { color: c.primary, fontWeight: '600' }]}>Tarjeta / otro</Text>
               </TouchableOpacity>
               {cashAccounts.map((acc) => {
                 const active = accountId === acc.id;
@@ -147,7 +150,11 @@ export default function Manual() {
                 );
               })}
             </View>
-            <Text style={styles.helpText}>Si elegís una cuenta, el monto se resta de ese efectivo.</Text>
+            <Text style={styles.helpText}>
+              {isEdit
+                ? 'Si elegís una cuenta de efectivo, el monto se resta de ese saldo y se reajusta al cambiarlo.'
+                : 'Si elegís una cuenta de efectivo, el monto se resta de ese saldo. "Tarjeta / otro" no toca ningún saldo.'}
+            </Text>
           </>
         )}
 
