@@ -51,13 +51,49 @@ function mimeFromUri(uri, fallback = 'image/jpeg') {
   return fallback;
 }
 
+function grabNumber(text, key) {
+  const m = new RegExp(`"${key}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`).exec(text);
+  return m ? Number(m[1]) : null;
+}
+function grabString(text, key) {
+  const m = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`).exec(text);
+  return m ? m[1] : null;
+}
+
+// Recupera los consumos completos de un JSON aunque esté cortado (resúmenes largos).
+function salvageExpenses(text) {
+  const i = text.indexOf('"expenses"');
+  const arrStart = text.indexOf('[', i === -1 ? 0 : i);
+  if (arrStart === -1) return [];
+  const region = text.slice(arrStart);
+  const out = [];
+  const re = /\{[^{}]*\}/g; // objetos planos, sin anidar (cada consumo lo es)
+  let m;
+  while ((m = re.exec(region))) {
+    if (m[0].includes('"amount"')) {
+      try { out.push(JSON.parse(m[0])); } catch { /* objeto incompleto, se ignora */ }
+    }
+  }
+  return out;
+}
+
 function extractJson(text) {
   // Gemini a veces envuelve el JSON en ```json ... ```. Lo limpiamos.
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('La respuesta no contenía JSON.');
-  return JSON.parse(cleaned.slice(start, end + 1));
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { /* probamos recuperar */ }
+  }
+  // Fallback: respuesta cortada. Recuperamos los consumos que sí estén completos.
+  const expenses = salvageExpenses(cleaned);
+  if (expenses.length === 0) throw new Error('La respuesta no contenía JSON.');
+  return {
+    expenses,
+    documentTotal: grabNumber(cleaned, 'documentTotal'),
+    dueDate: grabString(cleaned, 'dueDate'),
+    cardName: grabString(cleaned, 'cardName'),
+  };
 }
 
 function normalize(items) {

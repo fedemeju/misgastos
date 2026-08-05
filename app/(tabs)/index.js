@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useRouter, useFocusEffect, Link, Redirect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams, Link, Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getExpensesByMonth, getTotalsByCategory, deleteExpense, deleteExpenses, deleteExpensesByMonth, getIncomesByMonth, deleteIncome } from '../../src/db';
 import { getCategory, getIncomeCategory } from '../../src/categories';
@@ -23,6 +23,12 @@ export default function Home() {
   const [month, setMonth] = useState(currentMonth());
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // Al volver de guardar un resumen, saltamos al mes donde quedó guardado.
+  const { goMonth } = useLocalSearchParams();
+  useEffect(() => {
+    if (typeof goMonth === 'string' && /^\d{4}-\d{2}$/.test(goMonth)) setMonth(goMonth);
+  }, [goMonth]);
 
   const load = useCallback(async (m) => {
     const [exp, inc, tot] = await Promise.all([

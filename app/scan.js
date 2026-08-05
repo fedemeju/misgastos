@@ -87,7 +87,13 @@ export default function Scan() {
       } else {
         await addExpensesBatch(items);
       }
-      router.back();
+      // Llevamos a Inicio al mes donde quedaron guardados (para resúmenes, el del vencimiento).
+      const targetMonth = String(dueDate || items[0]?.date || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(targetMonth)) {
+        router.replace({ pathname: '/', params: { goMonth: targetMonth } });
+      } else {
+        router.back();
+      }
     } catch (e) {
       Alert.alert('No se pudo guardar', String(e.message || e));
     }
@@ -150,7 +156,7 @@ export default function Scan() {
               <Text style={styles.docTotalNote}>
                 {Math.abs(docTotal - total) < 1
                   ? '✓ La suma de los consumos coincide con el total.'
-                  : `La diferencia (${formatMoney(docTotal - total)}) suele ser saldo anterior e impuestos, que no se guardan como consumos. Se guardan los ${items.length} consumos de arriba.`}
+                  : `✓ Se leyeron ${items.length} consumos. La diferencia (${formatMoney(docTotal - total)}) es saldo anterior, impuestos y percepciones, que no se cargan como gastos.`}
               </Text>
             </View>
           )}
