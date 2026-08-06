@@ -20,6 +20,7 @@ export default function Scan() {
   const [cardName, setCardName] = useState(null);
   const [fileName, setFileName] = useState('');
   const [editingIndex, setEditingIndex] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   async function run(uri, mime, name) {
     setLoading(true);
@@ -77,6 +78,8 @@ export default function Scan() {
   }
 
   async function saveAll() {
+    if (saving) return; // evita guardar dos veces por doble toque
+    setSaving(true);
     try {
       // Si es un resumen (tiene vencimiento o nombre de tarjeta), se agrupa como un solo movimiento.
       const isStatement = !!dueDate || !!cardName;
@@ -87,11 +90,24 @@ export default function Scan() {
       } else {
         await addExpensesBatch(items);
       }
-      // Dejamos anotado el mes donde quedaron guardados para que Inicio salte ahí.
       const targetMonth = String(dueDate || items[0]?.date || '').slice(0, 7);
-      if (/^\d{4}-\d{2}$/.test(targetMonth)) await setSetting('pending_jump_month', targetMonth);
-      router.back();
+      const validMonth = /^\d{4}-\d{2}$/.test(targetMonth);
+      // Para un resumen guardado en el mes del vencimiento, avisamos dónde quedó
+      // y dejamos que el usuario decida si quiere ir a ese mes (sin saltar solo).
+      if (isStatement && validMonth) {
+        Alert.alert(
+          '✓ Guardado',
+          `Se guardaron ${items.length} consumos en ${monthLabel(targetMonth)} (el mes del vencimiento del resumen).`,
+          [
+            { text: `Ver ${monthLabel(targetMonth)}`, onPress: async () => { await setSetting('pending_jump_month', targetMonth); router.back(); } },
+            { text: 'Listo', style: 'cancel', onPress: () => router.back() },
+          ]
+        );
+      } else {
+        router.back();
+      }
     } catch (e) {
+      setSaving(false);
       Alert.alert('No se pudo guardar', String(e.message || e));
     }
   }
@@ -163,8 +179,8 @@ export default function Scan() {
           <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={() => setItems(null)}>
             <Text style={styles.btnSecondaryText}>Descartar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnPrimary, { flex: 1.4 }]} onPress={saveAll}>
-            <Text style={styles.btnPrimaryText}>✓  Guardar {items.length} gasto{items.length !== 1 ? 's' : ''}</Text>
+          <TouchableOpacity style={[styles.btn, styles.btnPrimary, { flex: 1.4 }, saving && { opacity: 0.6 }]} onPress={saveAll} disabled={saving}>
+            <Text style={styles.btnPrimaryText}>{saving ? 'Guardando…' : `✓  Guardar ${items.length} gasto${items.length !== 1 ? 's' : ''}`}</Text>
           </TouchableOpacity>
         </View>
 
