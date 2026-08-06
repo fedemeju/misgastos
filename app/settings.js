@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Linking, Switch } from 'react-native';
+import * as Updates from 'expo-updates';
 import { getSetting, setSetting } from '../src/db';
 import { exportBackup, importBackup } from '../src/backup';
 import { scheduleDailyReminder, cancelReminder, DEFAULT_MSG } from '../src/reminders';
@@ -20,6 +21,29 @@ export default function Settings() {
   const [remOn, setRemOn] = useState(false);
   const [remTime, setRemTime] = useState('21:00');
   const [remMsg, setRemMsg] = useState(DEFAULT_MSG);
+  const [checkingUpd, setCheckingUpd] = useState(false);
+
+  async function checkForUpdate() {
+    if (!Updates.isEnabled) {
+      return Alert.alert('No disponible', 'Las actualizaciones automáticas no están activas en esta versión (modo desarrollo).');
+    }
+    setCheckingUpd(true);
+    try {
+      const r = await Updates.checkForUpdateAsync();
+      if (r.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        Alert.alert('Actualización lista', 'Se descargó la última versión. La app se va a reiniciar para aplicarla.', [
+          { text: 'Aplicar ahora', onPress: () => Updates.reloadAsync() },
+        ]);
+      } else {
+        Alert.alert('Todo al día', 'Ya tenés la última versión instalada.');
+      }
+    } catch {
+      Alert.alert('No se pudo actualizar', 'Revisá tu conexión a internet e intentá de nuevo.');
+    } finally {
+      setCheckingUpd(false);
+    }
+  }
 
   useEffect(() => {
     getSetting('gemini_api_key').then((v) => v && setKey(v));
@@ -105,7 +129,13 @@ export default function Settings() {
 
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>Apariencia</Text>
+      <Text style={styles.title}>Actualizaciones</Text>
+      <Text style={styles.text}>Traé las últimas mejoras sin reinstalar la app.</Text>
+      <TouchableOpacity style={[styles.updBtn, checkingUpd && { opacity: 0.6 }]} onPress={checkForUpdate} disabled={checkingUpd}>
+        <Text style={styles.updBtnText}>{checkingUpd ? 'Buscando…' : '⟳  Buscar actualización'}</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.title, { marginTop: 30 }]}>Apariencia</Text>
       <Text style={styles.text}>Elegí el modo de la app. "Auto" sigue el modo noche de tu teléfono.</Text>
       <View style={styles.segment}>
         {THEME_OPTIONS.map((opt) => {
@@ -219,6 +249,8 @@ const makeStyles = (c) => StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 40 },
   title: { fontSize: 18, fontWeight: '600', color: c.textPrimary, marginBottom: 8 },
   text: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+  updBtn: { height: 48, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  updBtnText: { fontSize: 15, color: c.primary, fontWeight: '600' },
   segment: { flexDirection: 'row', backgroundColor: c.subtle, borderRadius: 12, padding: 4, marginTop: 14 },
   segmentItem: { flex: 1, height: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   segmentItemActive: { backgroundColor: c.card },
