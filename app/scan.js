@@ -6,8 +6,24 @@ import * as DocumentPicker from 'expo-document-picker';
 import { extractExpenses } from '../src/extract';
 import { addExpensesBatch, setSetting } from '../src/db';
 import { CATEGORIES, getCategory } from '../src/categories';
-import { formatMoney, shortDate, monthLabel } from '../src/format';
+import { formatMoney, shortDate, monthLabel, currentMonth } from '../src/format';
 import { useTheme } from '../src/theme';
+
+function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Mes por defecto: el del vencimiento si es actual o futuro; si es pasado o inválido, el mes actual.
+function sensibleMonth(due) {
+  const cur = currentMonth();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(due || '')) {
+    const m = due.slice(0, 7);
+    if (m >= cur) return m;
+  }
+  return cur;
+}
 
 export default function Scan() {
   const router = useRouter();
@@ -21,6 +37,7 @@ export default function Scan() {
   const [fileName, setFileName] = useState('');
   const [editingIndex, setEditingIndex] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [targetMonth, setTargetMonth] = useState(currentMonth()); // mes donde se guardará un resumen
 
   async function run(uri, mime, name) {
     setLoading(true);
@@ -31,7 +48,14 @@ export default function Scan() {
         Alert.alert('Sin gastos', 'No se detectaron gastos en el comprobante. Probá con otra foto más nítida.');
         setItems(null);
       } else {
-        setItems(due ? result.map((it) => ({ ...it, date: due })) : result);
+        const isStatement = !!due || !!card;
+        if (isStatement) {
+          const m = sensibleMonth(due);
+          setTargetMonth(m);
+          setItems(result.map((it) => ({ ...it, date: `${m}-01` })));
+        } else {
+          setItems(result);
+        }
         setDocTotal(documentTotal);
         setDueDate(due);
         setCardName(card);
@@ -77,6 +101,13 @@ export default function Scan() {
     setEditingIndex(null);
   }
 
+  // Cambia el mes donde se guardará el resumen (y re-fecha los consumos a ese mes).
+  function shiftTarget(delta) {
+    const m = shiftMonth(targetMonth, delta);
+    setTargetMonth(m);
+    setItems((prev) => prev.map((it) => ({ ...it, date: `${m}-01` })));
+  }
+
   async function saveAll() {
     if (saving) return; // evita guardar dos veces por doble toque
     setSaving(true);
@@ -87,25 +118,12 @@ export default function Scan() {
         const groupId = `stmt_${Date.now()}`;
         const groupLabel = cardName || 'Resumen de tarjeta';
         await addExpensesBatch(items, groupId, groupLabel);
+        // El usuario ya eligió el mes en pantalla; saltamos ahí (sin sorpresas).
+        await setSetting('pending_jump_month', targetMonth);
       } else {
         await addExpensesBatch(items);
       }
-      const targetMonth = String(dueDate || items[0]?.date || '').slice(0, 7);
-      const validMonth = /^\d{4}-\d{2}$/.test(targetMonth);
-      // Para un resumen guardado en el mes del vencimiento, avisamos dónde quedó
-      // y dejamos que el usuario decida si quiere ir a ese mes (sin saltar solo).
-      if (isStatement && validMonth) {
-        Alert.alert(
-          '✓ Guardado',
-          `Se guardaron ${items.length} consumos en ${monthLabel(targetMonth)} (el mes del vencimiento del resumen).`,
-          [
-            { text: `Ver ${monthLabel(targetMonth)}`, onPress: async () => { await setSetting('pending_jump_month', targetMonth); router.back(); } },
-            { text: 'Listo', style: 'cancel', onPress: () => router.back() },
-          ]
-        );
-      } else {
-        router.back();
-      }
+      router.back();
     } catch (e) {
       setSaving(false);
       Alert.alert('No se pudo guardar', String(e.message || e));
@@ -130,10 +148,20 @@ export default function Scan() {
           <View style={styles.fileBanner}>
             <Text style={styles.fileBannerText}>✓  {fileName || 'Comprobante'} · {items.length} gasto{items.length !== 1 ? 's' : ''} detectado{items.length !== 1 ? 's' : ''}</Text>
           </View>
-          {dueDate && (
+          {(dueDate || cardName) && (
             <View style={styles.dueBanner}>
-              <Text style={styles.dueBannerText}>💳 Resumen de tarjeta · vence {shortDate(dueDate)}</Text>
-              <Text style={styles.dueBannerSub}>Todos los consumos se guardan en {monthLabel(dueDate.slice(0, 7))}, porque se pagan juntos al vencimiento.</Text>
+              <Text style={styles.dueBannerText}>💳 {cardName || 'Resumen de tarjeta'}{dueDate ? ` · vence ${shortDate(dueDate)}` : ''}</Text>
+              <Text style={styles.monthPickerLabel}>Guardar todo en el mes:</Text>
+              <View style={styles.monthPickerRow}>
+                <TouchableOpacity onPress={() => shiftTarget(-1)} style={styles.mpArrow} hitSlop={10}>
+                  <Text style={styles.mpArrowText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={styles.mpMonth}>{monthLabel(targetMonth)}</Text>
+                <TouchableOpacity onPress={() => shiftTarget(1)} style={styles.mpArrow} hitSlop={10}>
+                  <Text style={styles.mpArrowText}>›</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.dueBannerSub}>Los consumos del resumen se pagan juntos, por eso van todos a un mismo mes. Elegí cuál con las flechas.</Text>
             </View>
           )}
           <Text style={styles.reviewHint}>Revisá que esté bien y tocá la categoría para cambiarla.</Text>
@@ -240,7 +268,12 @@ const makeStyles = (c) => StyleSheet.create({
   fileBannerText: { color: c.bannerText, fontSize: 13, fontWeight: '500' },
   dueBanner: { backgroundColor: c.neutralBanner, borderRadius: 12, padding: 12, marginBottom: 12 },
   dueBannerText: { color: c.textPrimary, fontSize: 13, fontWeight: '600' },
-  dueBannerSub: { color: c.textSecondary, fontSize: 12, marginTop: 4, lineHeight: 17 },
+  dueBannerSub: { color: c.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17 },
+  monthPickerLabel: { color: c.textSecondary, fontSize: 12, marginTop: 10 },
+  monthPickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 6, backgroundColor: c.card, borderRadius: 10, paddingVertical: 8 },
+  mpArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  mpArrowText: { fontSize: 26, color: c.primary, lineHeight: 28 },
+  mpMonth: { fontSize: 15, fontWeight: '600', color: c.textPrimary, textTransform: 'capitalize', minWidth: 140, textAlign: 'center' },
   reviewHint: { fontSize: 12, color: c.textMuted, marginBottom: 12 },
   card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, marginBottom: 10 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
