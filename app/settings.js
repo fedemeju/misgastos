@@ -134,6 +134,9 @@ export default function Settings() {
       <TouchableOpacity style={[styles.updBtn, checkingUpd && { opacity: 0.6 }]} onPress={checkForUpdate} disabled={checkingUpd}>
         <Text style={styles.updBtnText}>{checkingUpd ? 'Buscando…' : '⟳  Buscar actualización'}</Text>
       </TouchableOpacity>
+      <Text style={styles.updInfo}>
+        {Updates.createdAt ? `Versión del ${Updates.createdAt.toLocaleDateString('es-AR')} ${Updates.createdAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : 'Versión de desarrollo'}
+      </Text>
 
       <Text style={[styles.title, { marginTop: 30 }]}>Apariencia</Text>
       <Text style={styles.text}>Elegí el modo de la app. "Auto" sigue el modo noche de tu teléfono.</Text>
@@ -251,6 +254,7 @@ const makeStyles = (c) => StyleSheet.create({
   text: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
   updBtn: { height: 48, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   updBtnText: { fontSize: 15, color: c.primary, fontWeight: '600' },
+  updInfo: { fontSize: 11, color: c.textFaint, marginTop: 8, textAlign: 'center' },
   segment: { flexDirection: 'row', backgroundColor: c.subtle, borderRadius: 12, padding: 4, marginTop: 14 },
   segmentItem: { flex: 1, height: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   segmentItemActive: { backgroundColor: c.card },

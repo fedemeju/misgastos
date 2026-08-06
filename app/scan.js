@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { extractExpenses } from '../src/extract';
-import { addExpensesBatch } from '../src/db';
+import { addExpensesBatch, setSetting } from '../src/db';
 import { CATEGORIES, getCategory } from '../src/categories';
 import { formatMoney, shortDate, monthLabel } from '../src/format';
 import { useTheme } from '../src/theme';
@@ -87,13 +87,10 @@ export default function Scan() {
       } else {
         await addExpensesBatch(items);
       }
-      // Llevamos a Inicio al mes donde quedaron guardados (para resúmenes, el del vencimiento).
+      // Dejamos anotado el mes donde quedaron guardados para que Inicio salte ahí.
       const targetMonth = String(dueDate || items[0]?.date || '').slice(0, 7);
-      if (/^\d{4}-\d{2}$/.test(targetMonth)) {
-        router.replace({ pathname: '/', params: { goMonth: targetMonth } });
-      } else {
-        router.back();
-      }
+      if (/^\d{4}-\d{2}$/.test(targetMonth)) await setSetting('pending_jump_month', targetMonth);
+      router.back();
     } catch (e) {
       Alert.alert('No se pudo guardar', String(e.message || e));
     }

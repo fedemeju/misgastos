@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useRouter, useFocusEffect, useLocalSearchParams, Link, Redirect } from 'expo-router';
+import { useRouter, useFocusEffect, Link, Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getExpensesByMonth, getTotalsByCategory, deleteExpense, deleteExpenses, deleteExpensesByMonth, getIncomesByMonth, deleteIncome } from '../../src/db';
+import { getExpensesByMonth, getTotalsByCategory, deleteExpense, deleteExpenses, deleteExpensesByMonth, getIncomesByMonth, deleteIncome, getSetting, setSetting } from '../../src/db';
 import { getCategory, getIncomeCategory } from '../../src/categories';
 import { formatMoney, currentMonth, monthLabel, shortDate } from '../../src/format';
 import { useTheme } from '../../src/theme';
@@ -24,12 +24,6 @@ export default function Home() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Al volver de guardar un resumen, saltamos al mes donde quedó guardado.
-  const { goMonth } = useLocalSearchParams();
-  useEffect(() => {
-    if (typeof goMonth === 'string' && /^\d{4}-\d{2}$/.test(goMonth)) setMonth(goMonth);
-  }, [goMonth]);
-
   const load = useCallback(async (m) => {
     const [exp, inc, tot] = await Promise.all([
       getExpensesByMonth(m),
@@ -41,7 +35,21 @@ export default function Home() {
     setTotals(tot);
   }, []);
 
-  useFocusEffect(useCallback(() => { load(month); }, [load, month]));
+  // Al enfocar Inicio: si venimos de guardar un resumen, saltamos a ese mes.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    (async () => {
+      const jump = await getSetting('pending_jump_month');
+      if (active && jump && /^\d{4}-\d{2}$/.test(jump)) {
+        await setSetting('pending_jump_month', '');
+        setMonth(jump);
+        load(jump);
+      } else {
+        load(month);
+      }
+    })();
+    return () => { active = false; };
+  }, [load, month]));
 
   const grandTotal = totals.reduce((sum, t) => sum + t.total, 0);
   const incomeTotal = incomes.reduce((sum, i) => sum + i.amount, 0);
