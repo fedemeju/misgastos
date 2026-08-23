@@ -110,6 +110,36 @@ function normalize(items) {
     .filter((it) => it.amount > 0);
 }
 
+// Llama a Gemini reintentando ante errores transitorios (503/500: modelo saturado).
+async function callGeminiWithRetry(url, body) {
+  const RETRY = [500, 502, 503, 504];
+  const MAX_ATTEMPTS = 4;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return res;
+
+    const errText = await res.text();
+    if (res.status === 400 && /API key/i.test(errText)) {
+      throw new Error('La API key parece inválida. Revisala en Ajustes.');
+    }
+    if (res.status === 429) {
+      throw new Error('Alcanzaste el límite de uso gratuito de Gemini por ahora. Esperá un momento y probá de nuevo.');
+    }
+    if (RETRY.includes(res.status)) {
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1))); // 1.5s, 3s, 4.5s
+        continue;
+      }
+      throw new Error('El servicio de Google está saturado ahora mismo (error 503). No es tu API key: esperá un ratito y volvé a intentar.');
+    }
+    throw new Error(`Error del servicio (${res.status}). Probá de nuevo.`);
+  }
+}
+
 // Devuelve un array de gastos listos para revisar/guardar.
 export async function extractExpenses(fileUri, mimeTypeHint) {
   const apiKey = await getSetting('gemini_api_key');
@@ -136,22 +166,7 @@ export async function extractExpenses(fileUri, mimeTypeHint) {
     },
   };
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    if (res.status === 400 && /API key/i.test(errText)) {
-      throw new Error('La API key parece inválida. Revisala en Ajustes.');
-    }
-    if (res.status === 429) {
-      throw new Error('Alcanzaste el límite de uso gratuito de Gemini por ahora. Esperá un momento y probá de nuevo.');
-    }
-    throw new Error(`Error del servicio (${res.status}). Probá de nuevo.`);
-  }
+  const res = await callGeminiWithRetry(`${GEMINI_URL}?key=${apiKey}`, body);
 
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
