@@ -34,7 +34,8 @@ Analizá la imagen/PDF y devolvé SOLO un JSON válido (sin texto extra, sin mar
 Cómo decidir qué devolver:
 - Si es un RESUMEN de tarjeta o de cuenta: devolvé un gasto por CADA CONSUMO o COMPRA real del período, cada uno con su importe, comercio, fecha y categoría. Recorré TODAS las páginas y no te saltees ninguno. SÍ incluí como gastos de categoría "financiacion": intereses, punitorios, mora, intereses por financiación y cargos financieros. NO incluyas: saldo anterior, pagos ya realizados, IVA, impuestos, percepciones ni sellados. En "documentTotal" poné el TOTAL A PAGAR del resumen (el importe final). En "dueDate" poné la FECHA DE VENCIMIENTO del resumen (buscá "Vencimiento", "Vto", "Fecha de pago").
 - Si es un TICKET o factura de una sola compra: devolvé UN solo gasto con el TOTAL final pagado (ya con impuestos), poné ese mismo total en "documentTotal" y dejá "dueDate" en null.
-- Trabajá con los importes en PESOS. Si hay una sección en dólares, ignorala.
+- TODOS los "amount" van SIEMPRE en PESOS.
+- Consumos en DÓLARES (sección "Consumos en el exterior", "en dólares" o "USD"): SÍ incluilos, pero convertidos a pesos. Usá el valor EN PESOS que figura en el resumen para ese consumo (los bancos muestran el importe en pesos que te van a cobrar). Si un consumo solo aparece en USD junto a una cotización/tipo de cambio del resumen, multiplicá USD × cotización para obtener los pesos. Agregá " (USD)" al final de la "description" de esos consumos para identificarlos. No agregues como consumo los subtotales/totales de la sección en dólares.
 
 Reglas:
 - "amount" y "documentTotal" son números, sin símbolo de moneda ni separadores de miles. Usá punto para decimales.
