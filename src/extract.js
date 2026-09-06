@@ -8,8 +8,10 @@ import { CATEGORY_KEYS } from './categories';
 //  Para cambiar de proveedor (ej: Claude), solo reescribís extractExpenses().
 // ============================================================================
 
-const GEMINI_MODEL = 'gemini-flash-latest';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Se prueban en orden: si el primero está saturado, se pasa al de respaldo.
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-2.0-flash'];
+const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+const REQUEST_TIMEOUT_MS = 90000;
 
 const PROMPT = `Sos un asistente que lee comprobantes de gastos (tickets, facturas y sobre todo resúmenes de tarjeta de crédito) y extrae los gastos.
 Analizá la imagen/PDF y devolvé SOLO un JSON válido (sin texto extra, sin markdown) con esta forma:
@@ -110,34 +112,73 @@ function normalize(items) {
     .filter((it) => it.amount > 0);
 }
 
-// Llama a Gemini reintentando ante errores transitorios (503/500: modelo saturado).
-async function callGeminiWithRetry(url, body) {
-  const RETRY = [500, 502, 503, 504];
-  const MAX_ATTEMPTS = 4;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const res = await fetch(url, {
+// Un POST a Gemini con timeout (para que no se quede colgado eternamente).
+async function postGemini(url, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const SATURATED = 'SATURATED'; // marcador interno para probar el modelo de respaldo
+
+// Llama a un modelo, reintentando ante saturación (503/500) o timeout.
+async function callModelWithRetry(url, body) {
+  const RETRY = [500, 502, 503, 504];
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = await postGemini(url, body);
+    } catch {
+      // timeout o error de red -> reintentamos, y si se agota, marcamos saturación
+      if (attempt < MAX_ATTEMPTS - 1) { await sleep(1200 * (attempt + 1)); continue; }
+      throw new Error(SATURATED);
+    }
     if (res.ok) return res;
 
     const errText = await res.text();
     if (res.status === 400 && /API key/i.test(errText)) {
       throw new Error('La API key parece inválida. Revisala en Ajustes.');
     }
-    if (res.status === 429) {
-      throw new Error('Alcanzaste el límite de uso gratuito de Gemini por ahora. Esperá un momento y probá de nuevo.');
-    }
-    if (RETRY.includes(res.status)) {
-      if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1))); // 1.5s, 3s, 4.5s
-        continue;
-      }
-      throw new Error('El servicio de Google está saturado ahora mismo (error 503). No es tu API key: esperá un ratito y volvé a intentar.');
+    if (res.status === 429 || RETRY.includes(res.status)) {
+      if (attempt < MAX_ATTEMPTS - 1) { await sleep(1200 * (attempt + 1)); continue; }
+      throw new Error(SATURATED);
     }
     throw new Error(`Error del servicio (${res.status}). Probá de nuevo.`);
   }
+}
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+// Prueba los modelos en orden; si uno está saturado, pasa al de respaldo.
+async function callGemini(apiKey, mimeType, base64) {
+  let lastErr;
+  for (const model of GEMINI_MODELS) {
+    const gen = { temperature: 0, response_mime_type: 'application/json', maxOutputTokens: 8192 };
+    // El "thinking" agrega mucha latencia; lo apagamos en los modelos que lo soportan.
+    if (model.includes('flash-latest') || model.includes('2.5')) gen.thinkingConfig = { thinkingBudget: 0 };
+    const body = {
+      contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mimeType, data: base64 } }] }],
+      generationConfig: gen,
+    };
+    try {
+      return await callModelWithRetry(`${geminiUrl(model)}?key=${apiKey}`, body);
+    } catch (e) {
+      lastErr = e;
+      if (/API key/i.test(e.message)) throw e; // no tiene sentido probar el respaldo
+      // saturación u otro error transitorio -> probamos el siguiente modelo
+    }
+  }
+  throw new Error('El servicio de Google está saturado ahora mismo. No es tu API key: esperá un ratito y volvé a intentar (suele andar mejor con PDF que con foto).');
 }
 
 // Devuelve un array de gastos listos para revisar/guardar.
@@ -150,23 +191,7 @@ export async function extractExpenses(fileUri, mimeTypeHint) {
   const base64 = await new File(fileUri).base64();
   const mimeType = mimeTypeHint || mimeFromUri(fileUri);
 
-  const body = {
-    contents: [
-      {
-        parts: [
-          { text: PROMPT },
-          { inline_data: { mime_type: mimeType, data: base64 } },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0,
-      response_mime_type: 'application/json',
-      maxOutputTokens: 65536,
-    },
-  };
-
-  const res = await callGeminiWithRetry(`${GEMINI_URL}?key=${apiKey}`, body);
+  const res = await callGemini(apiKey, mimeType, base64);
 
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
