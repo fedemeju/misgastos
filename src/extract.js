@@ -8,8 +8,8 @@ import { CATEGORY_KEYS } from './categories';
 //  Para cambiar de proveedor (ej: Claude), solo reescribís extractExpenses().
 // ============================================================================
 
-// Se prueban en orden: si el primero está saturado, se pasa al de respaldo.
-const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-2.0-flash'];
+// Se prueban en orden: flash-lite es más rápido y menos saturado; si falla, el flash completo.
+const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest'];
 const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 const REQUEST_TIMEOUT_MS = 90000;
 
@@ -133,7 +133,7 @@ const SATURATED = 'SATURATED'; // marcador interno para probar el modelo de resp
 // Llama a un modelo, reintentando ante saturación (503/500) o timeout.
 async function callModelWithRetry(url, body) {
   const RETRY = [500, 502, 503, 504];
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 2;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let res;
     try {
@@ -162,23 +162,25 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // Prueba los modelos en orden; si uno está saturado, pasa al de respaldo.
 async function callGemini(apiKey, mimeType, base64) {
   let lastErr;
+  let allSaturated = true;
   for (const model of GEMINI_MODELS) {
-    const gen = { temperature: 0, response_mime_type: 'application/json', maxOutputTokens: 8192 };
-    // El "thinking" agrega mucha latencia; lo apagamos en los modelos que lo soportan.
-    if (model.includes('flash-latest') || model.includes('2.5')) gen.thinkingConfig = { thinkingBudget: 0 };
     const body = {
       contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mimeType, data: base64 } }] }],
-      generationConfig: gen,
+      generationConfig: { temperature: 0, response_mime_type: 'application/json', maxOutputTokens: 8192 },
     };
     try {
       return await callModelWithRetry(`${geminiUrl(model)}?key=${apiKey}`, body);
     } catch (e) {
       lastErr = e;
       if (/API key/i.test(e.message)) throw e; // no tiene sentido probar el respaldo
-      // saturación u otro error transitorio -> probamos el siguiente modelo
+      if (e.message !== SATURATED) allSaturated = false; // fue un error real, no saturación
+      // probamos el siguiente modelo
     }
   }
-  throw new Error('El servicio de Google está saturado ahora mismo. No es tu API key: esperá un ratito y volvé a intentar (suele andar mejor con PDF que con foto).');
+  if (allSaturated) {
+    throw new Error('El servicio de Google está saturado ahora mismo. No es tu API key: esperá un ratito y volvé a intentar (suele andar mejor con PDF que con foto).');
+  }
+  throw lastErr; // mostramos el error real del último modelo para poder diagnosticarlo
 }
 
 // Devuelve un array de gastos listos para revisar/guardar.
