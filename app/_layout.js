@@ -32,7 +32,7 @@ function ThemedStack() {
         <Stack.Screen name="accounts" options={{ title: 'Saldos' }} />
         <Stack.Screen name="analysis" options={{ title: 'Análisis' }} />
         <Stack.Screen name="debts" options={{ title: 'Deudas' }} />
-        <Stack.Screen name="vencimientos" options={{ title: 'Vencimientos' }} />
+        <Stack.Screen name="vencimientos" options={{ title: 'Recordatorios' }} />
         <Stack.Screen name="debt" options={{ title: 'Deuda' }} />
         <Stack.Screen name="settings" options={{ title: 'Ajustes' }} />
       </Stack>

@@ -197,7 +197,7 @@ export default function Home() {
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.quickBtn, styles.quickWide]} onPress={() => router.push('/vencimientos')}>
-          <Text style={styles.quickText}>📅  Vencimientos de tarjeta y deudas</Text>
+          <Text style={styles.quickText}>📅  Vencimientos, cierres y gastos fijos</Text>
         </TouchableOpacity>
 
         <Text style={styles.section}>Por categoría</Text>

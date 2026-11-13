@@ -86,6 +86,12 @@ export async function initDb() {
     await db.execAsync(`ALTER TABLE debts ADD COLUMN currency TEXT NOT NULL DEFAULT 'ARS'`);
   }
 
+  // Migración: tipo de recordatorio (vencimiento / cierre / gasto).
+  const dueCols = await db.getAllAsync(`PRAGMA table_info(due_reminders)`);
+  if (!dueCols.some((c) => c.name === 'category')) {
+    await db.execAsync(`ALTER TABLE due_reminders ADD COLUMN category TEXT NOT NULL DEFAULT 'vencimiento'`);
+  }
+
   // Cuentas por defecto la primera vez.
   const cnt = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM accounts`);
   if (cnt.n === 0) {
@@ -404,12 +410,12 @@ export async function getDueReminders() {
   return db.getAllAsync(`SELECT * FROM due_reminders ORDER BY kind, day, date, id`);
 }
 
-export async function addDueReminder({ title, amount, kind, day, date, hour, minute, notifId }) {
+export async function addDueReminder({ title, amount, kind, day, date, hour, minute, notifId, category }) {
   const db = await getDb();
   const result = await db.runAsync(
-    `INSERT INTO due_reminders (title, amount, kind, day, date, hour, minute, notif_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, amount ?? null, kind || 'monthly', day ?? null, date ?? null, hour ?? 9, minute ?? 0, notifId ?? null]
+    `INSERT INTO due_reminders (title, amount, kind, day, date, hour, minute, notif_id, category)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, amount ?? null, kind || 'monthly', day ?? null, date ?? null, hour ?? 9, minute ?? 0, notifId ?? null, category || 'vencimiento']
   );
   return result.lastInsertRowId;
 }
@@ -477,9 +483,9 @@ export async function importAllData(data) {
     }
     for (const r of data.dueReminders || []) {
       await db.runAsync(
-        `INSERT OR REPLACE INTO due_reminders (id, title, amount, kind, day, date, hour, minute, notif_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [r.id, r.title, r.amount ?? null, r.kind ?? 'monthly', r.day ?? null, r.date ?? null, r.hour ?? 9, r.minute ?? 0, r.notif_id ?? null, r.created_at ?? null]
+        `INSERT OR REPLACE INTO due_reminders (id, title, amount, kind, day, date, hour, minute, notif_id, created_at, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [r.id, r.title, r.amount ?? null, r.kind ?? 'monthly', r.day ?? null, r.date ?? null, r.hour ?? 9, r.minute ?? 0, r.notif_id ?? null, r.created_at ?? null, r.category ?? 'vencimiento']
       );
     }
     for (const s of data.settings || []) {

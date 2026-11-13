@@ -8,15 +8,24 @@ import { useTheme } from '../src/theme';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
+// Tipos de recordatorio.
+const CATS = {
+  vencimiento: { label: 'Vencimiento', icon: '📅', hint: 'Ej: Tarjeta Visa, Cuota préstamo' },
+  cierre: { label: 'Cierre de tarjeta', icon: '💳', hint: 'Ej: Visa Galicia' },
+  gasto: { label: 'Gasto mensual', icon: '💰', hint: 'Ej: Alquiler, Netflix, Expensas' },
+};
+const CAT_ORDER = ['vencimiento', 'cierre', 'gasto'];
+
 function pad(n) { return String(n).padStart(2, '0'); }
 
 function subtitle(r) {
   const hm = `${pad(r.hour ?? 9)}:${pad(r.minute ?? 0)}`;
+  const catLabel = CATS[r.category]?.label || 'Vencimiento';
   if (r.kind === 'once' && r.date) {
     const [y, m, d] = r.date.split('-').map(Number);
-    return `El ${d} de ${MESES[(m || 1) - 1]} de ${y} · ${hm}`;
+    return `${catLabel} · El ${d} de ${MESES[(m || 1) - 1]} de ${y} · ${hm}`;
   }
-  return `Todos los meses el día ${r.day} · ${hm}`;
+  return `${catLabel} · Todos los meses el día ${r.day} · ${hm}`;
 }
 
 function parseTime(t) {
@@ -35,6 +44,7 @@ export default function Vencimientos() {
 
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('vencimiento');
   const [kind, setKind] = useState('monthly');
   const [day, setDay] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -44,8 +54,14 @@ export default function Vencimientos() {
   useFocusEffect(load);
 
   function resetForm() {
-    setTitle(''); setAmount(''); setKind('monthly'); setDay('');
+    setTitle(''); setAmount(''); setCategory('vencimiento'); setKind('monthly'); setDay('');
     setDate(new Date().toISOString().slice(0, 10)); setTime('09:00');
+  }
+
+  // Cierre y gasto mensual son siempre mensuales; vencimiento puede ser único.
+  function pickCategory(cat) {
+    setCategory(cat);
+    if (cat !== 'vencimiento') setKind('monthly');
   }
 
   async function create() {
@@ -72,7 +88,7 @@ export default function Vencimientos() {
     const payload = {
       title: title.trim(),
       amount: amount.trim() ? parseAmountInput(amount) : null,
-      kind, day: dayVal, date: dateVal, hour: t.h, minute: t.mi,
+      category, kind, day: dayVal, date: dateVal, hour: t.h, minute: t.mi,
     };
     const notifId = await scheduleDueNotification(payload);
     await addDueReminder({ ...payload, notifId });
@@ -97,14 +113,14 @@ export default function Vencimientos() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.intro}>Cargá los vencimientos de tus tarjetas y deudas. La app te manda una notificación el día que le digas.</Text>
+        <Text style={styles.intro}>Cargá vencimientos de tarjeta, cierres de tarjeta y gastos mensuales fijos. La app te manda una notificación el día que le digas.</Text>
 
-        {items.length === 0 && <Text style={styles.empty}>Todavía no cargaste ningún vencimiento.</Text>}
+        {items.length === 0 && <Text style={styles.empty}>Todavía no cargaste ningún recordatorio.</Text>}
 
         {items.map((r) => (
           <TouchableOpacity key={r.id} style={styles.card} activeOpacity={0.7} onLongPress={() => confirmDelete(r)}>
             <View style={styles.cardTop}>
-              <Text style={styles.name}>{r.kind === 'once' ? '🔔' : '🔁'}  {r.title}</Text>
+              <Text style={styles.name}>{CATS[r.category]?.icon || '📅'}  {r.title}</Text>
               {r.amount ? <Text style={styles.amount}>{formatMoney(r.amount)}</Text> : null}
             </View>
             <View style={styles.rowBetween}>
@@ -117,7 +133,7 @@ export default function Vencimientos() {
         {items.length > 0 && <Text style={styles.tinyHint}>Mantené presionado un aviso para borrarlo.</Text>}
 
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddOpen(true)}>
-          <Text style={styles.addBtnText}>+  Agregar vencimiento</Text>
+          <Text style={styles.addBtnText}>+  Agregar recordatorio</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -126,29 +142,45 @@ export default function Vencimientos() {
           <TouchableOpacity style={styles.modalBg} activeOpacity={1} onPress={() => setAddOpen(false)}>
             <TouchableOpacity style={styles.sheet} activeOpacity={1}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <Text style={styles.sheetTitle}>Nuevo vencimiento</Text>
+                <Text style={styles.sheetTitle}>Nuevo recordatorio</Text>
 
-                <Text style={styles.inputLabel}>Nombre</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ej: Tarjeta Visa, Cuota préstamo" placeholderTextColor={c.textFaint} />
-
-                <Text style={styles.inputLabel}>Monto (opcional)</Text>
-                <TextInput style={styles.input} value={amount} onChangeText={(t) => setAmount(formatAmountInput(t))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textFaint} />
-
-                <Text style={styles.inputLabel}>¿Cada cuánto?</Text>
+                <Text style={styles.inputLabel}>Tipo</Text>
                 <View style={styles.curRow}>
-                  {[{ k: 'monthly', l: 'Todos los meses' }, { k: 'once', l: 'Una sola vez' }].map((o) => {
-                    const active = kind === o.k;
+                  {CAT_ORDER.map((cat) => {
+                    const active = category === cat;
                     return (
-                      <TouchableOpacity key={o.k} style={[styles.curChip, active && styles.curChipActive]} onPress={() => setKind(o.k)}>
-                        <Text style={[styles.curChipText, active && styles.curChipTextActive]}>{o.l}</Text>
+                      <TouchableOpacity key={cat} style={[styles.catChip, active && styles.curChipActive]} onPress={() => pickCategory(cat)}>
+                        <Text style={[styles.catChipText, active && styles.curChipTextActive]}>{CATS[cat].icon}{'\n'}{CATS[cat].label}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
+                <Text style={styles.inputLabel}>Nombre</Text>
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={CATS[category].hint} placeholderTextColor={c.textFaint} />
+
+                <Text style={styles.inputLabel}>Monto (opcional)</Text>
+                <TextInput style={styles.input} value={amount} onChangeText={(t) => setAmount(formatAmountInput(t))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={c.textFaint} />
+
+                {category === 'vencimiento' && (
+                  <>
+                    <Text style={styles.inputLabel}>¿Cada cuánto?</Text>
+                    <View style={styles.curRow}>
+                      {[{ k: 'monthly', l: 'Todos los meses' }, { k: 'once', l: 'Una sola vez' }].map((o) => {
+                        const active = kind === o.k;
+                        return (
+                          <TouchableOpacity key={o.k} style={[styles.curChip, active && styles.curChipActive]} onPress={() => setKind(o.k)}>
+                            <Text style={[styles.curChipText, active && styles.curChipTextActive]}>{o.l}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
                 {kind === 'monthly' ? (
                   <>
-                    <Text style={styles.inputLabel}>Día del mes (1 a 28)</Text>
+                    <Text style={styles.inputLabel}>{category === 'cierre' ? 'Día de cierre (1 a 28)' : 'Día del mes (1 a 28)'}</Text>
                     <TextInput style={styles.input} value={day} onChangeText={(t) => setDay(t.replace(/[^\d]/g, '').slice(0, 2))} keyboardType="number-pad" placeholder="Ej: 10" placeholderTextColor={c.textFaint} />
                   </>
                 ) : (
@@ -196,6 +228,8 @@ const makeStyles = (c) => StyleSheet.create({
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 14, height: 48, fontSize: 16, color: c.textPrimary },
   curRow: { flexDirection: 'row', gap: 8 },
   curChip: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  catChip: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  catChipText: { fontSize: 12, color: c.textSecondary, textAlign: 'center', lineHeight: 17 },
   curChipActive: { backgroundColor: c.selectedBg, borderColor: c.primary },
   curChipText: { fontSize: 14, color: c.textSecondary },
   curChipTextActive: { color: c.primary, fontWeight: '600' },

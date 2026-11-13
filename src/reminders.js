@@ -48,10 +48,21 @@ export async function applyReminderFromSettings() {
   }
 }
 
-// ---- Vencimientos (tarjeta / deuda) ----
+// ---- Recordatorios: vencimientos, cierres de tarjeta y gastos mensuales ----
 
+const DUE_TITLES = {
+  cierre: '💳 Cierre de tarjeta',
+  gasto: '💰 Gasto mensual',
+  vencimiento: '📅 Vencimiento',
+};
+function dueTitle(item) {
+  return DUE_TITLES[item.category] || DUE_TITLES.vencimiento;
+}
 function dueBody(item) {
-  return item.amount ? `${item.title} · ${formatMoney(item.amount)}` : item.title;
+  const amt = item.amount ? ` · ${formatMoney(item.amount)}` : '';
+  if (item.category === 'cierre') return `Hoy cierra ${item.title}${amt}`;
+  if (item.category === 'gasto') return `Acordate de pagar ${item.title}${amt}`;
+  return `${item.title}${amt}`;
 }
 
 // Programa una notificación de vencimiento. Devuelve el id o null (si no hay permiso o ya pasó).
@@ -71,7 +82,7 @@ export async function scheduleDueNotification(item) {
     trigger = { type: Notifications.SchedulableTriggerInputTypes.MONTHLY, day, hour, minute };
   }
   return Notifications.scheduleNotificationAsync({
-    content: { title: '📅 Vencimiento', body: dueBody(item) },
+    content: { title: dueTitle(item), body: dueBody(item) },
     trigger,
   });
 }
