@@ -58,11 +58,16 @@ const DUE_TITLES = {
 function dueTitle(item) {
   return DUE_TITLES[item.category] || DUE_TITLES.vencimiento;
 }
+function leadOf(item) {
+  return Math.max(0, Number(item.lead_days ?? item.leadDays ?? 0));
+}
 function dueBody(item) {
   const amt = item.amount ? ` · ${formatMoney(item.amount)}` : '';
-  if (item.category === 'cierre') return `Hoy cierra ${item.title}${amt}`;
-  if (item.category === 'gasto') return `Acordate de pagar ${item.title}${amt}`;
-  return `${item.title}${amt}`;
+  const lead = leadOf(item);
+  const when = lead === 0 ? 'Hoy' : lead === 1 ? 'Mañana' : `En ${lead} días`;
+  if (item.category === 'cierre') return `${when} cierra ${item.title}${amt}`;
+  if (item.category === 'gasto') return `${when === 'Hoy' ? 'Pagá hoy' : when + ' pagás'} ${item.title}${amt}`;
+  return `${when} vence ${item.title}${amt}`;
 }
 
 // Programa una notificación de vencimiento. Devuelve el id o null (si no hay permiso o ya pasó).
@@ -70,15 +75,17 @@ export async function scheduleDueNotification(item) {
   if (!(await ensurePermission())) return null;
   const hour = Number.isFinite(item.hour) ? item.hour : 9;
   const minute = Number.isFinite(item.minute) ? item.minute : 0;
+  const lead = leadOf(item);
   let trigger;
   if (item.kind === 'once') {
     const d = new Date(`${item.date}T00:00:00`);
+    d.setDate(d.getDate() - lead); // avisar N días antes
     d.setHours(hour, minute, 0, 0);
     if (isNaN(d.getTime()) || d.getTime() <= Date.now()) return null; // ya pasó o fecha inválida
     trigger = { type: Notifications.SchedulableTriggerInputTypes.DATE, date: d };
   } else {
-    // Mensual: se limita a 28 para que exista en todos los meses.
-    const day = Math.min(Math.max(Number(item.day) || 1, 1), 28);
+    // Mensual: avisamos N días antes del día del evento. Se limita a 1..28 para que exista siempre.
+    const day = Math.min(Math.max((Number(item.day) || 1) - lead, 1), 28);
     trigger = { type: Notifications.SchedulableTriggerInputTypes.MONTHLY, day, hour, minute };
   }
   return Notifications.scheduleNotificationAsync({

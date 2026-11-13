@@ -18,14 +18,19 @@ const CAT_ORDER = ['vencimiento', 'cierre', 'gasto'];
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
+function leadText(lead) {
+  return lead === 0 ? 'aviso el mismo día' : lead === 1 ? 'aviso 1 día antes' : `aviso ${lead} días antes`;
+}
+
 function subtitle(r) {
   const hm = `${pad(r.hour ?? 9)}:${pad(r.minute ?? 0)}`;
   const catLabel = CATS[r.category]?.label || 'Vencimiento';
+  const lt = leadText(Number(r.lead_days ?? 0));
   if (r.kind === 'once' && r.date) {
     const [y, m, d] = r.date.split('-').map(Number);
-    return `${catLabel} · El ${d} de ${MESES[(m || 1) - 1]} de ${y} · ${hm}`;
+    return `${catLabel} · ${d} de ${MESES[(m || 1) - 1]} de ${y} · ${lt} · ${hm}`;
   }
-  return `${catLabel} · Todos los meses el día ${r.day} · ${hm}`;
+  return `${catLabel} · día ${r.day} de cada mes · ${lt} · ${hm}`;
 }
 
 function parseTime(t) {
@@ -49,19 +54,22 @@ export default function Vencimientos() {
   const [day, setDay] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState('09:00');
+  const [lead, setLead] = useState(1); // días de anticipación del aviso
 
   const load = useCallback(() => { getDueReminders().then(setItems); }, []);
   useFocusEffect(load);
 
   function resetForm() {
     setTitle(''); setAmount(''); setCategory('vencimiento'); setKind('monthly'); setDay('');
-    setDate(new Date().toISOString().slice(0, 10)); setTime('09:00');
+    setDate(new Date().toISOString().slice(0, 10)); setTime('09:00'); setLead(1);
   }
 
   // Cierre y gasto mensual son siempre mensuales; vencimiento puede ser único.
+  // Por defecto: vencimiento avisa 1 día antes; cierre/gasto, el mismo día.
   function pickCategory(cat) {
     setCategory(cat);
-    if (cat !== 'vencimiento') setKind('monthly');
+    if (cat !== 'vencimiento') { setKind('monthly'); setLead(0); }
+    else setLead(1);
   }
 
   async function create() {
@@ -88,7 +96,7 @@ export default function Vencimientos() {
     const payload = {
       title: title.trim(),
       amount: amount.trim() ? parseAmountInput(amount) : null,
-      category, kind, day: dayVal, date: dateVal, hour: t.h, minute: t.mi,
+      category, kind, day: dayVal, date: dateVal, hour: t.h, minute: t.mi, leadDays: lead,
     };
     const notifId = await scheduleDueNotification(payload);
     await addDueReminder({ ...payload, notifId });
@@ -180,15 +188,27 @@ export default function Vencimientos() {
 
                 {kind === 'monthly' ? (
                   <>
-                    <Text style={styles.inputLabel}>{category === 'cierre' ? 'Día de cierre (1 a 28)' : 'Día del mes (1 a 28)'}</Text>
+                    <Text style={styles.inputLabel}>{category === 'cierre' ? 'Día de cierre (1 a 28)' : category === 'gasto' ? 'Día del mes (1 a 28)' : 'Día de vencimiento (1 a 28)'}</Text>
                     <TextInput style={styles.input} value={day} onChangeText={(t) => setDay(t.replace(/[^\d]/g, '').slice(0, 2))} keyboardType="number-pad" placeholder="Ej: 10" placeholderTextColor={c.textFaint} />
                   </>
                 ) : (
                   <>
-                    <Text style={styles.inputLabel}>Fecha (AAAA-MM-DD)</Text>
+                    <Text style={styles.inputLabel}>Fecha de vencimiento (AAAA-MM-DD)</Text>
                     <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="2026-08-15" placeholderTextColor={c.textFaint} keyboardType="numbers-and-punctuation" />
                   </>
                 )}
+
+                <Text style={styles.inputLabel}>Avisarme (días antes)</Text>
+                <View style={styles.curRow}>
+                  {[{ v: 0, l: 'El día' }, { v: 1, l: '1' }, { v: 2, l: '2' }, { v: 3, l: '3' }].map((o) => {
+                    const active = lead === o.v;
+                    return (
+                      <TouchableOpacity key={o.v} style={[styles.curChip, active && styles.curChipActive]} onPress={() => setLead(o.v)}>
+                        <Text style={[styles.curChipText, active && styles.curChipTextActive]}>{o.l}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
                 <Text style={styles.inputLabel}>Hora del aviso (HH:MM)</Text>
                 <TextInput style={styles.input} value={time} onChangeText={setTime} placeholder="09:00" placeholderTextColor={c.textFaint} keyboardType="numbers-and-punctuation" />
